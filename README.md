@@ -43,39 +43,47 @@ Run the following command in your terminal:
 
 ```bash
 npm create vite@latest .
+```
 
 
 You will be prompted to:
-
+```
 Select a framework: Choose Vue
 
 Select a variant: Choose JavaScript or TypeScript (recommended)
-
+```
 Alternatively, you can scaffold with one command (non-interactive):
-
+```
 # For Vue + JavaScript
 npm create vite@latest . -- --template vue
-
+```
+```
 # For Vue + TypeScript
 npm create vite@latest . -- --template vue-ts
-
+```
 2. Install dependencies
+```
 npm install
+```
 
-3. Create your working branch
+4. Create your working branch
+```
 git checkout -b feature/your-name/initial-setup
+```
 
-4. Run the development server
+5. Run the development server
+```
 npm run dev
+```
 
 Your app will be available at http://localhost:5173
 
 
 Code Review Process
 Push your branch to remote:
-
+```
 git push origin feature/your-name/description
-
+```
 Open a Merge Request on GitHub
 
 Request reviewers
