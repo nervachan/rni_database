@@ -80,25 +80,32 @@ Your app will be available at http://localhost:5173
 
 
 Code Review Process
-Push your branch to remote:
+
+- Push your branch to remote:
 ```
 git push origin feature/your-name/description
 ```
-Open a Merge Request on GitHub
+- Open a Merge Request on GitHub
 
-Request reviewers
+- Request reviewers
 
-Address feedback
+- Address feedback
 
-Merge only after approval
+- Merge only after approval
 
 Rules Summary
 Do
-Work on your own branch
-Open MRs for every push
-Wait for code review before merging
-Directly push to main if explicitly instructed to do so
+
+- Work on your own branch
+
+- Open MRs for every push
+
+- Wait for code review before merging
+
+- Directly push to main if explicitly instructed to do so
 
 Don't
-Push directly to main
-Merge without review
+
+- Push directly to main
+
+- Merge without review
