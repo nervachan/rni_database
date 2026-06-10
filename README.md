@@ -43,6 +43,8 @@ Run the following command in your terminal:
 
 ```bash
 npm create vite@latest .
+
+
 You will be prompted to:
 
 Select a framework: Choose Vue
@@ -51,45 +53,30 @@ Select a variant: Choose JavaScript or TypeScript (recommended)
 
 Alternatively, you can scaffold with one command (non-interactive):
 
-bash
 # For Vue + JavaScript
 npm create vite@latest . -- --template vue
 
 # For Vue + TypeScript
 npm create vite@latest . -- --template vue-ts
+
 2. Install dependencies
-bash
 npm install
+
 3. Create your working branch
-bash
 git checkout -b feature/your-name/initial-setup
+
 4. Run the development server
-bash
 npm run dev
+
 Your app will be available at http://localhost:5173
 
-5. Backend setup (to be researched)
-Once the backend stack is chosen, add setup instructions here.
 
-Project Structure (after scaffolding)
-text
-project-root/
-├── index.html
-├── package.json
-├── vite.config.js
-├── public/
-└── src/
-    ├── main.js
-    ├── App.vue
-    ├── components/
-    ├── assets/
-    └── style.css
 Code Review Process
 Push your branch to remote:
 
-bash
 git push origin feature/your-name/description
-Open a Merge Request on your Git platform (GitLab/GitHub/etc.)
+
+Open a Merge Request on GitHub
 
 Request reviewers
 
@@ -98,16 +85,12 @@ Address feedback
 Merge only after approval
 
 Rules Summary
-✅ Do
-
+Do
 Work on your own branch
-
 Open MRs for every push
-
 Wait for code review before merging
+Directly push to main if explicitly instructed to do so
 
-❌ Don't
-
+Don't
 Push directly to main
-
 Merge without review
