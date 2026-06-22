@@ -34,7 +34,7 @@ function goBack() {
             
             <button class="BackButton absolute top-3 left-3 w-7 h-8 bg-[#2e4e3c] hover:opacity-80 rounded-sm flex items-center justify-center" @click="goBack"><ChevronLeftIcon class="h-5 w-5 text-white"/></button>
 
-            <div class="CardContent flex flex-col items-center gap-6 w-full mt-4">
+            <div class="CardContent flex flex-col items-center gap-4 w-full mt-4">
 
                 <div class="LogoAndName flex flex-col items-center gap-4">
                     <img class="DatabaseLogo h-24 sm:h-[90px]" src="../assets/UC_Official_Seal.png" alt="UC Seal">
