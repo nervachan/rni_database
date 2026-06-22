@@ -37,7 +37,7 @@ function goBack() {
             <div class="CardContent flex flex-col items-center gap-6 w-full mt-4">
 
                 <div class="LogoAndName flex flex-col items-center gap-4">
-                    <img class="DatabaseLogo h-24 sm:h-[90px]" src="../assets/UC_Official_Seal.png">
+                    <img class="DatabaseLogo h-24 sm:h-[90px]" src="../assets/UC_Official_Seal.png" alt="UC Seal">
                     <h2 class="text-md font-bold text-[#263e30] text-center">INTTO and RSO Database</h2>
                 </div>
 
