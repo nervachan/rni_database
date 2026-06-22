@@ -17,14 +17,14 @@ const showPassword = ref(false);
 <template>
     <div class="LoginPage bg-gradient-to-b from-[#203429] to-[#ffffff] flex items-center justify-center h-screen">
 
-        <div class="LoginCard gap-4 bg-gradient-to-b from-[#9abba4] to-[#ffffff] flex flex-col items-center justify-center rounded-lg shadow-xl p-[20px] w-[400px]">
+        <div class="LoginCard gap-4 bg-gradient-to-b from-[#9abba4] to-[#ffffff] flex flex-col items-center justify-center rounded-lg shadow-xl p-5 sm:p-8 w-full max-w-[400px] mx-4">
             
             <div class="LogoAndName flex flex-col items-center gap-4">
-                <img class="DatabaseLogo h-[150px]" src="../assets/UC_Official_Seal.png">
-                <h2 class="text-xl font-bold text-[#263e30]">INTTO and RSO Database</h2>
+                <img class="DatabaseLogo h-24 sm:h-[150px]" src="../assets/UC_Official_Seal.png">
+                <h2 class="text-xl font-bold text-[#263e30] text-center">INTTO and RSO Database</h2>
             </div>
 
-            <div class="InputFields gap-4 flex flex-col w-[300px]">
+            <div class="InputFields gap-4 flex flex-col w-full">
                 <input type="email" placeholder="Email" class="bg-gray-100 rounded-md shadow-md p-2 w-full hover:outline-none hover:ring-2 hover:ring-[#263e30] focus:outline-none focus:ring-2 focus:ring-[#263e30]">
                 
                 <div class="relative w-full">
@@ -46,8 +46,8 @@ const showPassword = ref(false);
             </div>
 
             <div class="Buttons flex-row gap-4 flex">
-                <button class="rounded-md bg-[#2e4e3c] text-white p-2 w-[100px] hover:opacity-80">Login</button>
-                <button class="rounded-md bg-[#2e4e3c] text-white p-2 w-[100px] hover:opacity-80" @click="goToRegister">Sign Up</button>
+                <button class="rounded-md bg-[#2e4e3c] text-white p-2 w-28 hover:opacity-80">Login</button>
+                <button class="rounded-md bg-[#2e4e3c] text-white p-2 w-28 hover:opacity-80" @click="goToRegister">Sign Up</button>
             </div>
 
         </div>
