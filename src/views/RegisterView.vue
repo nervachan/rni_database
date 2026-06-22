@@ -34,14 +34,14 @@ function goBack() {
             
             <button class="BackButton absolute top-3 left-3 w-7 h-8 bg-[#2e4e3c] hover:opacity-80 rounded-sm flex items-center justify-center" @click="goBack"><ChevronLeftIcon class="h-5 w-5 text-white"/></button>
 
-            <div class="CardContent flex flex-col items-center gap-4">
+            <div class="CardContent flex flex-col items-center gap-6 w-full mt-4">
 
                 <div class="LogoAndName flex flex-col items-center gap-4">
                     <img class="DatabaseLogo h-24 sm:h-[90px]" src="../assets/UC_Official_Seal.png">
                     <h2 class="text-md font-bold text-[#263e30] text-center">INTTO and RSO Database</h2>
                 </div>
 
-                <div class="RegisFields gap-2 flex flex-col w-full sm:w-[300px]">
+                <div class="RegisFields gap-2 flex flex-col w-full">
                     <input type="text" placeholder="First Name" class="bg-gray-100 drop-shadow-md rounded-md p-2 w-full hover:outline-none hover:ring-2 hover:ring-[#263e30] focus:outline-none focus:ring-2 focus:ring-[#263e30]">
                     <input type="text" placeholder="Last Name" class="bg-gray-100 drop-shadow-md rounded-md p-2 w-full hover:outline-none hover:ring-2 hover:ring-[#263e30] focus:outline-none focus:ring-2 focus:ring-[#263e30]">
                     <input type="email" placeholder="Email" class="bg-gray-100 drop-shadow-md rounded-md p-2 w-full hover:outline-none hover:ring-2 hover:ring-[#263e30] focus:outline-none focus:ring-2 focus:ring-[#263e30]">
