@@ -5,10 +5,11 @@
       <h2 class="text-[11px] font-bold tracking-widest uppercase text-[#2a3a28]">STARTUPS</h2>
 
       <!-- Stat cards -->
-      <section class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 drop-shadow-md p-4 rounded-xl">
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         <div
           v-for="s in startupStats" :key="s.eyebrow"
-          class="rounded-xl px-4 py-3.5 flex flex-col gap-1 min-h-[90px] shadow-2xl shadow-black-950 shadow-[5px_5px_10px_rgba(0,0,0,0.5)] bg-gradient-to-b from-[#1C5333] to-[#0B2C19]">
+          class="bg-[#1e4d2e] rounded-xl px-4 py-3.5 flex flex-col gap-1 min-h-[90px]"
+        >
           <span class="text-[11px] font-medium text-[#9ecfa8]">{{ s.eyebrow }}</span>
           <span
             class="font-bold text-white leading-tight"
@@ -16,11 +17,11 @@
           >{{ s.value }}</span>
           <span class="text-[11px] text-[#7dab87] mt-0.5">{{ s.sub }}</span>
         </div>
-      </section>
+      </div>
 
       <!-- Chart cards -->
-      <section class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-        <div class="rounded-xl px-4 py-3.5 flex flex-col gap-1 min-h-[90px] shadow-2xl shadow-black-950 shadow-[5px_5px_10px_rgba(0,0,0,0.5)] bg-gradient-to-b from-[#1C5333] to-[#0B2C19] border border-[#2a3a28]">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 ">
+        <div class="bg-[#1e4d2e] rounded-xl px-4 py-4">
           <p class="text-xs font-semibold text-[#c8e6c9] mb-3.5">Startups per cohort</p>
           <div class="flex flex-col gap-3">
             <div v-for="item in startupsPerCohort" :key="item.label" class="flex items-center gap-2.5">
@@ -36,7 +37,7 @@
           </div>
         </div>
 
-        <div class="rounded-xl px-4 py-3.5 flex flex-col gap-1 min-h-[90px] shadow-2xl shadow-black-950 shadow-[5px_5px_10px_rgba(0,0,0,0.5)] bg-gradient-to-b from-[#1C5333] to-[#0B2C19] border border-[#2a3a28]">
+        <div class="bg-[#1e4d2e] rounded-xl px-4 py-4">
           <p class="text-xs font-semibold text-[#c8e6c9] mb-3.5">Startups by genre</p>
           <div class="flex flex-col gap-3">
             <div v-for="item in startupsByGenre" :key="item.label" class="flex items-center gap-2.5">
@@ -51,7 +52,7 @@
             </div>
           </div>
         </div>
-      </section>
+      </div>
     </section>
 
     <!-- INTELLECTUAL PROPERTY SECTION -->
@@ -59,7 +60,7 @@
       <h2 class="text-[11px] font-bold tracking-widest uppercase text-[#2a3a28]">INTELLECTUAL PROPERTY</h2>
 
       <!-- Stat cards -->
-      <section class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         <div
           v-for="s in ipStats" :key="s.eyebrow"
           class="bg-[#1e4d2e] rounded-xl px-4 py-3.5 flex flex-col gap-1 min-h-[90px]"
@@ -75,10 +76,10 @@
             }"
           >{{ s.sub }}</span>
         </div>
-      </section>
+      </div>
 
       <!-- Chart cards -->
-      <section class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
         <!-- IP by classification -->
         <div class="bg-[#1e4d2e] rounded-xl px-4 py-4">
           <p class="text-xs font-semibold text-[#c8e6c9] mb-3.5">IP by classification</p>
@@ -115,7 +116,7 @@
             </div>
           </div>
         </div>
-      </section>
+      </div>
     </section>
 
   </div>
