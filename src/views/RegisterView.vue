@@ -28,7 +28,7 @@ function goBack() {
 
 <template> 
 
-    <div class="RegistrationPage bg-gradient-to-b from-[#203429] to-[#ffffff] flex items-center justify-center h-screen">
+    <div class="RegistrationPage bg-gradient-to-b from-[#203429] to-[#ffffff] flex items-center justify-center min-h-screen">
         
         <div class="RegistrationCard bg-gradient-to-b from-[#9abba4] to-[#ffffff] flex flex-col items-center justify-start rounded-lg shadow-xl p-5 sm:p-8 w-full max-w-[400px] mx-4 relative">
             
