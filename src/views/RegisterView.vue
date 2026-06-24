@@ -13,19 +13,51 @@ const confirmPassword = ref('');
 const passwordError = ref('');
 const email = ref('');
 const emailError = ref ('');
+const firstName = ref('');
+const firstNameError = ref('');
+const lastName = ref('');
+const lastNameError = ref('');
+const role = ref('');
+const roleError = ref('');
 
 function handleSignUp() {
+    if (firstName.value.trim() === "") {
+        firstNameError.value = 'First name must not be empty';
+        return;
+    }
+        firstNameError.value = '';
+
+    if (lastName.value.trim() === "") {
+        lastNameError.value = 'Last name must not be empty'
+        return;
+    }
+        lastNameError.value = '';
+    
     if (!email.value.includes('@')) {
         emailError.value = 'Invalid Email';
         return;
     }
         emailError.value = '';
     
+    if (password.value.length < 8) {
+        passwordError.value = 'Passwords must contain at least 8 characters'
+        return;
+    }
+        passwordError.value = '';    
+    
     if (password.value !== confirmPassword.value) {
         passwordError.value = 'Passwords do not match';
         return;
+
     }
-        passwordError.value = ''; 
+        passwordError.value = '';
+
+    if (role.value.trim() === '') {
+        roleError.value = 'Please select a role'
+        return;
+    }
+        roleError.value = '';
+
 } 
 
 function goBack() {
@@ -50,9 +82,11 @@ function goBack() {
                 </div>
 
                 <div class="RegisFields gap-2 flex flex-col w-full">
-                    <input type="text" placeholder="First Name" class="bg-gray-100 drop-shadow-md rounded-md p-2 w-full hover:outline-none hover:ring-2 hover:ring-[#263e30] focus:outline-none focus:ring-2 focus:ring-[#263e30]">
-                    <input type="text" placeholder="Last Name" class="bg-gray-100 drop-shadow-md rounded-md p-2 w-full hover:outline-none hover:ring-2 hover:ring-[#263e30] focus:outline-none focus:ring-2 focus:ring-[#263e30]">
-                    <input v-model="email" type="email" placeholder="Email" class="bg-gray-100 drop-shadow-md rounded-md p-2 w-full hover:outline-none hover:ring-2 hover:ring-[#263e30] focus:outline-none focus:ring-2 focus:ring-[#263e30]">
+                    <input v-model="firstName" type="text" placeholder="First Name" class="bg-gray-100 drop-shadow-md rounded-md p-2 w-full hover:outline-none hover:ring-2 hover:ring-[#263e30] focus:outline-none focus:ring-2 focus:ring-[#263e30]">
+                    <p v-if="firstNameError" class="text-sm text-red-500">{{ firstNameError }}</p>
+                    <input v-model="lastName" type="text" placeholder="Last Name" class="bg-gray-100 drop-shadow-md rounded-md p-2 w-full hover:outline-none hover:ring-2 hover:ring-[#263e30] focus:outline-none focus:ring-2 focus:ring-[#263e30]">
+                    <p v-if="lastNameError" class="text-sm text-red-500">{{ lastNameError }}</p>
+                    <input v-model="email" type="text" placeholder="Email" class="bg-gray-100 drop-shadow-md rounded-md p-2 w-full hover:outline-none hover:ring-2 hover:ring-[#263e30] focus:outline-none focus:ring-2 focus:ring-[#263e30]">
                     <p v-if="emailError" class="text-sm text-red-500">{{ emailError }}</p>
                     
                     <div class="relative w-full">
@@ -92,14 +126,14 @@ function goBack() {
                 </div>
 
                 <div class="BottomRow flex flex-row gap-2 w-full">
-                    <select class="flex-1 bg-gray-100 drop-shadow-md rounded-md p-2 w-full hover:outline-none hover:ring-2 hover:ring-[#263e30] focus:outline-none focus:ring-2 focus:ring-[#263e30]">
+                    <select v-model="role" class="flex-1 bg-gray-100 drop-shadow-md rounded-md p-2 w-full hover:outline-none hover:ring-2 hover:ring-[#263e30] focus:outline-none focus:ring-2 focus:ring-[#263e30]">
                         <option value="" disabled selected>Select role</option>
                         <option value="intto">INTTO</option>
                         <option value ="rso">RSO</option>
                     </select>
                     <button @click="handleSignUp" class="fixed-width bg-[#2e4e3c] text-white rounded-md p-2 hover:outline-none hover:opacity-80">Sign Up</button>
                 </div>
-
+                <p v-if="roleError" class="text-sm text-red-500">{{ roleError }}</p>
             </div>
 
         </div>
