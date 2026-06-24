@@ -26,21 +26,21 @@
       </router-link>
 
       <router-link
-        to="/summarydata"
+        to="/ip-management"
         class="flex items-center gap-3 px-4 py-3 text-sm font-medium text-sky-300 transition hover:bg-slate-800"
         active-class="bg-slate-800 text-sky-300"
       >
-        <span class="text-base">ℹ️</span>
-        <span v-if="!isCollapsed">Intellectual Property Management</span>
+        <span class="text-base">📋</span>
+        <span v-if="!isCollapsed">IP Management</span>
       </router-link>
 
       <router-link
-        to="/contact"
+        to="/startup-management"
         class="flex items-center gap-3 px-4 py-3 text-sm font-medium text-sky-300 transition hover:bg-slate-800"
         active-class="bg-slate-800 text-sky-300"
       >
-        <span class="text-base">📧</span>
-        <span v-if="!isCollapsed">StartupManagement</span>
+        <span class="text-base">🚀</span>
+        <span v-if="!isCollapsed">Startup Management</span>
       </router-link>
     </nav>
 
@@ -61,4 +61,3 @@ const emit = defineEmits(['toggle'])
 
 const toggleSidebar = () => emit('toggle')
 </script>
-   
