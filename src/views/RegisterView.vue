@@ -11,13 +11,21 @@ const showConfirmPassword = ref(false);
 const password = ref('');
 const confirmPassword = ref('');
 const passwordError = ref('');
+const email = ref('');
+const emailError = ref ('');
 
 function handleSignUp() {
+    if (!email.value.includes('@')) {
+        emailError.value = 'Invalid Email';
+        return;
+    }
+        emailError.value = '';
+    
     if (password.value !== confirmPassword.value) {
         passwordError.value = 'Passwords do not match';
         return;
     }
-        passwordError.value = '';
+        passwordError.value = ''; 
 } 
 
 function goBack() {
@@ -44,7 +52,8 @@ function goBack() {
                 <div class="RegisFields gap-2 flex flex-col w-full">
                     <input type="text" placeholder="First Name" class="bg-gray-100 drop-shadow-md rounded-md p-2 w-full hover:outline-none hover:ring-2 hover:ring-[#263e30] focus:outline-none focus:ring-2 focus:ring-[#263e30]">
                     <input type="text" placeholder="Last Name" class="bg-gray-100 drop-shadow-md rounded-md p-2 w-full hover:outline-none hover:ring-2 hover:ring-[#263e30] focus:outline-none focus:ring-2 focus:ring-[#263e30]">
-                    <input type="email" placeholder="Email" class="bg-gray-100 drop-shadow-md rounded-md p-2 w-full hover:outline-none hover:ring-2 hover:ring-[#263e30] focus:outline-none focus:ring-2 focus:ring-[#263e30]">
+                    <input v-model="email" type="email" placeholder="Email" class="bg-gray-100 drop-shadow-md rounded-md p-2 w-full hover:outline-none hover:ring-2 hover:ring-[#263e30] focus:outline-none focus:ring-2 focus:ring-[#263e30]">
+                    <p v-if="emailError" class="text-sm text-red-500">{{ emailError }}</p>
                     
                     <div class="relative w-full">
                         <input 

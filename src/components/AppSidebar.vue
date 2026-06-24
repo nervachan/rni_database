@@ -1,7 +1,7 @@
 <script setup>
 
 import { ref, computed } from 'vue'
-import { ArrowLeftStartOnRectangleIcon, Bars3Icon } from '@heroicons/vue/24/solid' //Sidebar Icons
+import { ArrowLeftStartOnRectangleIcon } from '@heroicons/vue/24/solid' //Sidebar Icons
 import { HomeIcon, BookOpenIcon } from '@heroicons/vue/24/outline' //RSO Icons
 import { LightBulbIcon, ShieldCheckIcon } from '@heroicons/vue/24/outline'//INTTO Icons
 import { UserIcon, CircleStackIcon, BellIcon } from '@heroicons/vue/24/outline' // Super Admin Icons
@@ -45,7 +45,19 @@ const navItemsForRole = computed(() => {
 
         <div class="Logo-And-Collapse-Section p-4 h-[100px] flex flex-row items-center" :class="isCollapsed ? 'justify-center' : 'justify-between'">
             <img class="Website-Logo h-16 shrink-0 transition-all duration-300" src="../assets/UC_Official_Seal.png" v-if="!isCollapsed">
-            <button class="Collapse-Button hover:text-[#263e30] hover:bg-white rounded-sm w-8 h-8 flex flex-row justify-center items-center transition-all duration-300" @click="isCollapsed = !isCollapsed"><Bars3Icon class="w-5 h-5"/></button>
+            <button class="Collapse-Button hover:text-[#263e30] hover:bg-white rounded-sm w-8 h-8 flex flex-row justify-center items-center transition-all duration-300" @click="isCollapsed = !isCollapsed">
+                <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" class="w-5 h-5">
+                    <g clip-path="url(#clip0_644_4321)">
+                        <rect x="1" y="1" width="30" height="30" rx="1" stroke="currentColor" stroke-width="2"/>
+                        <line x1="11" x2="11" y2="32" stroke="currentColor" stroke-width="2"/>
+                    </g>
+                    <defs>
+                            <clipPath id="clip0_644_4321">
+                            <rect width="32" height="32" fill="white"/>
+                        </clipPath>
+                    </defs>
+                </svg>
+            </button>
         </div>
 
         <div class="Sidebar-Nav-Items flex-1 p-2">
