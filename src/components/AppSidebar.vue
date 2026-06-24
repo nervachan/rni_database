@@ -15,19 +15,19 @@ const props = defineProps({
 
 const navItems = {
     'RSO Admin': [
-        {label: 'Dashboard', route: '/app/dashboard', icon:HomeIcon},
-        {label: 'Research Entry Management', route: '/app/research-entry-management', icon:BookOpenIcon},
+        {label: 'Dashboard', route: '/app/rso-admin/dashboard', icon:HomeIcon},
+        {label: 'Research Entry Management', route: '/app/rso-admin/research-entry-management', icon:BookOpenIcon},
     ],
     'INTTO Admin': [
-        {label: 'Dashboard', route: '/app/dashboard', icon:HomeIcon},
-        {label: 'IP Management', route: '/app/ip-management', icon:ShieldCheckIcon},
-        {label: 'Startup Management', route: '/app/startup-management', icon:LightBulbIcon},
+        {label: 'Dashboard', route: '/app/intto-admin/dashboard', icon:HomeIcon},
+        {label: 'IP Management', route: '/app/intto-admin/ip-management', icon:ShieldCheckIcon},
+        {label: 'Startup Management', route: '/app/intto-admin/startup-management', icon:LightBulbIcon},
     ],
     'Super Admin': [
-        {label: 'Dashboard', route: '/app/dashboard', icon:HomeIcon},
-        {label: 'User Management', route: '/app/user-management', icon:UserIcon},
-        {label: 'Logs', route: '/app/logs', icon:CircleStackIcon},
-        {label: 'Applications and Notifications', route: '/app/applications-and-notifications', icon:BellIcon},
+        {label: 'Dashboard', route: '/app/super-admin/dashboard', icon:HomeIcon},
+        {label: 'User Management', route: '/app/super-admin/user-management', icon:UserIcon},
+        {label: 'Logs', route: '/app/super-admin/logs', icon:CircleStackIcon},
+        {label: 'Applications and Notifications', route: '/app/super-admin/applications-and-notifications', icon:BellIcon},
     ]
 }
 
@@ -43,7 +43,7 @@ const navItemsForRole = computed(() => {
 
     <div class="Sidebar-Container h-screen bg-[#263e30] flex flex-col text-white transition-all duration-300 ease-in-out" :class="isCollapsed ? 'w-16' : 'w-64'">
 
-        <div class="Logo-And-Collapse-Section p-4 h-37.5 flex flex-row items-center" :class="isCollapsed ? 'justify-center' : 'justify-between'">
+        <div class="Logo-And-Collapse-Section p-4 h-[100px] flex flex-row items-center" :class="isCollapsed ? 'justify-center' : 'justify-between'">
             <img class="Website-Logo h-16 shrink-0 transition-all duration-300" src="../assets/UC_Official_Seal.png" v-if="!isCollapsed">
             <button class="Collapse-Button hover:text-[#263e30] hover:bg-white rounded-sm w-8 h-8 flex flex-row justify-center items-center transition-all duration-300" @click="isCollapsed = !isCollapsed"><Bars3Icon class="w-5 h-5"/></button>
         </div>
@@ -66,7 +66,7 @@ const navItemsForRole = computed(() => {
                         <transition name="fade-label">
                             <span
                                 v-show="!isCollapsed"
-                                class="sidebar-label ml-2 overflow-hidden whitespace-nowrap text-sm"
+                                class="sidebar-label ml-2 overflow-hidden text-sm"
                             >
                                 {{ navItem.label }}
                             </span>
