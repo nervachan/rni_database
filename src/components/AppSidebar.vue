@@ -1,7 +1,7 @@
 <script setup>
 
 import { ref, computed } from 'vue'
-import { ArrowLeftStartOnRectangleIcon } from '@heroicons/vue/24/solid' //Sidebar Icons
+import { ArrowLeftStartOnRectangleIcon, Bars3Icon } from '@heroicons/vue/24/solid' //Sidebar Icons
 import { HomeIcon, BookOpenIcon } from '@heroicons/vue/24/outline' //RSO Icons
 import { LightBulbIcon, ShieldCheckIcon } from '@heroicons/vue/24/outline'//INTTO Icons
 import { UserIcon, CircleStackIcon, BellIcon } from '@heroicons/vue/24/outline' // Super Admin Icons
@@ -32,16 +32,45 @@ const navItems = {
 }
 
 const isCollapsed = ref(false);
+const isMobileOpen = ref(false);
 
 const navItemsForRole = computed(() => {
     return navItems[props.role] || [];
 });
 
+function closeMobileMenu() {
+    isMobileOpen.value = false;
+} 
+
 </script>
 
 <template>
+    <div class="w-full min-w-full md:w-auto md:h-screen md:flex-shrink-0">
+    <!--  Mobile View NavBar -->
+    <div class="Mobile-NavBar md:hidden w-screen max-w-full h-[75px] bg-[#263e30] relative flex items-center justify-between p-4">
+        <button class="Logout-Button text-white w-8 h-8 hover:text-red-500 hover:bg-white rounded-sm flex flex-row justify-center items-center transition-all duration-300"><ArrowLeftStartOnRectangleIcon class="h-5 w-5" /></button>
+        <span class="absolute left-1/2 -translate-x-1/2 text-white">{{ props.role }}</span>
+        <button class="Collapse-Button text-white hover:text-[#263e30] hover:bg-white rounded-sm w-6 h-6 flex flex-row justify-center items-center" @click="isMobileOpen = !isMobileOpen"><Bars3Icon class="h-5 w-5"/></button>
+    </div>
 
-    <div class="Sidebar-Container h-screen bg-[#263e30] flex flex-col text-white transition-all duration-300 ease-in-out" :class="isCollapsed ? 'w-16' : 'w-64'">
+    <div v-show="isMobileOpen" class="NavLinks md:hidden w-screen max-w-full bg-[#263e30] p-2">
+        <ul>
+            <li v-for="navItem in navItemsForRole" :key="navItem.label">
+                <RouterLink
+                    :to="navItem.route"
+                    class="flex h-10 w-full items-center justify-center gap-2 text-white rounded hover:bg-white/10 transition-all duration-300"
+                    active-class="bg-white/10"
+                    @click="closeMobileMenu"
+                >
+                    <component :is="navItem.icon" class="w-5 h-5 shrink-0"/>
+                    <span class="text-sm">{{ navItem.label }}</span>
+                </RouterLink>
+            </li>
+        </ul>
+    </div>
+
+    <!-- Desktop View Sidebar -->
+    <div class="Sidebar-Container h-screen bg-[#263e30] hidden md:flex flex-col text-white transition-all duration-300 ease-in-out" :class="isCollapsed ? 'w-16' : 'w-64'">
 
         <div class="Logo-And-Collapse-Section p-4 h-[100px] flex flex-row items-center" :class="isCollapsed ? 'justify-center' : 'justify-between'">
             <img class="Website-Logo h-16 shrink-0 transition-all duration-300" src="../assets/UC_Official_Seal.png" v-if="!isCollapsed">
@@ -98,6 +127,7 @@ const navItemsForRole = computed(() => {
             <button class="Logout-Button w-8 h-8 hover:text-red-500 hover:bg-white rounded-sm flex flex-row justify-center items-center transition-all duration-300"><ArrowLeftStartOnRectangleIcon class="h-5 w-5" /></button>
         </div>
 
+    </div>
     </div>
 
 </template>

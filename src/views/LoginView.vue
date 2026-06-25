@@ -7,13 +7,27 @@ import {EyeIcon, EyeSlashIcon} from '@heroicons/vue/24/outline';
 const router = useRouter();
 const email = ref('');
 const emailError = ref ('');
+const password = ref('');
+const passwordError = ref('');
 
 function handleLogin() {
+    if (email.value.trim() === '') {
+        emailError.value = 'Email must not be empty';
+        return;
+    }
+        emailError.value = '';
+    
     if (!email.value.includes('@')) {
         emailError.value = 'Invalid Email';
         return;
     }
         emailError.value = '';
+
+    if (password.value.trim() === '') {
+        passwordError.value = 'Password must not be empty'
+        return;
+    }
+        passwordError.value = '';
 }
 
 function goToRegister() {
@@ -40,10 +54,12 @@ const showPassword = ref(false);
 
                 <div class="relative w-full">
                     <input 
+                        v-model="password"
                         :type="showPassword ? 'text' : 'password'" 
                         placeholder="Password" 
                         class="bg-gray-100 rounded-md shadow-md p-2 w-full hover:outline-none hover:ring-2 hover:ring-[#263e30] focus:outline-none focus:ring-2 focus:ring-[#263e30]"
                     >
+                    <p v-if="passwordError" class="text-sm text-red-500">{{ passwordError }}</p>
 
                     <button
                         type="button"

@@ -86,7 +86,7 @@ function goBack() {
                     <p v-if="firstNameError" class="text-sm text-red-500">{{ firstNameError }}</p>
                     <input v-model="lastName" type="text" placeholder="Last Name" class="bg-gray-100 drop-shadow-md rounded-md p-2 w-full hover:outline-none hover:ring-2 hover:ring-[#263e30] focus:outline-none focus:ring-2 focus:ring-[#263e30]">
                     <p v-if="lastNameError" class="text-sm text-red-500">{{ lastNameError }}</p>
-                    <input v-model="email" type="text" placeholder="Email" class="bg-gray-100 drop-shadow-md rounded-md p-2 w-full hover:outline-none hover:ring-2 hover:ring-[#263e30] focus:outline-none focus:ring-2 focus:ring-[#263e30]">
+                    <input v-model="email" type="email" placeholder="Email" class="bg-gray-100 drop-shadow-md rounded-md p-2 w-full hover:outline-none hover:ring-2 hover:ring-[#263e30] focus:outline-none focus:ring-2 focus:ring-[#263e30]">
                     <p v-if="emailError" class="text-sm text-red-500">{{ emailError }}</p>
                     
                     <div class="relative w-full">

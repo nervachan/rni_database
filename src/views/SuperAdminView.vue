@@ -10,9 +10,11 @@ const router = useRouter();
 
 <template>
 
-    <div class="ViewScreen flex flex-row h-screen">
+    <div class="ViewScreen flex flex-col md:flex-row min-h-screen overflow-hidden w-full">
         <AppSidebar role="Super Admin"/>
-        <RouterView />
+        <div class="flex-1 overflow-auto">
+            <RouterView />
+        </div>
     </div>
 
 </template>
