@@ -43,7 +43,7 @@
       </router-link>
 
       <router-link
-        to="/summarydata"
+        to="/ip-management"
         class="block px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-100 border-b border-slate-100"
         active-class="bg-sky-50 text-sky-600"
         @click="isMobileMenuOpen = false"
@@ -52,7 +52,7 @@
       </router-link>
 
       <router-link
-        to="/contact"
+        to="/startup-management"
         class="block px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-100"
         active-class="bg-sky-50 text-sky-600"
         @click="isMobileMenuOpen = false"
