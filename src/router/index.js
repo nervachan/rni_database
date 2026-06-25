@@ -5,6 +5,7 @@ import AppLayout from '../layouts/AppLayout.vue'
 import SuperAdminView from '../views/SuperAdminView.vue'
 import RSOView from '../views/RSOView.vue'
 import INTTOView from '../views/INTTOView.vue'
+import SuperAdminDashboard from '../views/super-admin-pages/SuperAdminDashboard.vue'
 
 const routes = [
     { path: '/', redirect: '/app/super-admin/dashboard'},
@@ -18,7 +19,7 @@ const routes = [
                 path: 'super-admin',
                 component: SuperAdminView,
                 children: [
-                    {path: 'dashboard', name: 'SuperAdminDashboard', component: {template: '<div>SuperAdminDashboard</div>'}},
+                    {path: 'dashboard', name: 'SuperAdminDashboard', component: SuperAdminDashboard},
                     {path: 'user-management', name: 'UserManagement', component: {template: '<div>UserManagement</div>'}},
                     {path: 'logs', name: 'Logs', component: {template: '<div>Logs</div>'}},
                     {path: 'applications-and-notifications', name: 'ApplicationsAndNotifications', component: {template: '<div>ApplicationsAndNotifications</div>'}},
