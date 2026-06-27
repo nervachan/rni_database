@@ -1,3 +1,107 @@
+<script setup>
+import { ref, computed, reactive } from 'vue'
+import { ipRecords } from '../../data/ip.js'
+
+defineEmits(['view'])
+
+const rows = ref([...ipRecords])
+
+// --- Toolbar state ---
+const search       = ref('')
+const filterStatus = ref('')
+const filterClass  = ref('')
+const sortKey      = ref('')
+
+// --- Form state ---
+const showForm  = ref(false)
+const editingId = ref(null)
+const form = reactive({ title: '', inventors: '', filingDate: '', classification: '', status: '' })
+
+const blankForm = () => ({ title: '', inventors: '', filingDate: '', classification: '', status: '' })
+
+function openForm(row = null) {
+  if (row) {
+    editingId.value     = row.id
+    form.title          = row.title
+    form.inventors      = row.inventors.join(', ')
+    form.filingDate     = row.filingDate
+    form.classification = row.classification
+    form.status         = row.status[0] ?? ''
+  } else {
+    editingId.value = null
+    Object.assign(form, blankForm())
+  }
+  showForm.value = true
+}
+
+function cancelForm() {
+  showForm.value  = false
+  editingId.value = null
+}
+
+function submitForm() {
+  if (!form.title.trim()) return
+
+  const record = {
+    title:          form.title.trim(),
+    inventors:      form.inventors.split(',').map(s => s.trim()).filter(Boolean),
+    filingDate:     form.filingDate,
+    classification: form.classification,
+    status:         [form.status],
+  }
+
+  if (editingId.value) {
+    const idx = rows.value.findIndex(r => r.id === editingId.value)
+    if (idx !== -1) rows.value[idx] = { ...rows.value[idx], ...record }
+  } else {
+    const newId = Math.max(0, ...rows.value.map(r => r.id)) + 1
+    rows.value.push({ id: newId, ...record })
+  }
+
+  cancelForm()
+}
+
+function deleteRow(id) {
+  rows.value = rows.value.filter(r => r.id !== id)
+}
+
+// --- Filtered + sorted view ---
+const displayedRows = computed(() => {
+  let result = rows.value
+
+  const q = search.value.toLowerCase()
+  if (q) result = result.filter(r =>
+    r.title.toLowerCase().includes(q) ||
+    r.inventors.join(' ').toLowerCase().includes(q) ||
+    r.classification.toLowerCase().includes(q) ||
+    r.status.join(' ').toLowerCase().includes(q)
+  )
+
+  if (filterStatus.value)
+    result = result.filter(r => r.status.includes(filterStatus.value))
+
+  if (filterClass.value)
+    result = result.filter(r => r.classification === filterClass.value)
+
+  if (sortKey.value === 'title')     result = [...result].sort((a, b) => a.title.localeCompare(b.title))
+  if (sortKey.value === 'titleDesc') result = [...result].sort((a, b) => b.title.localeCompare(a.title))
+  if (sortKey.value === 'date')      result = [...result].sort((a, b) => a.filingDate.localeCompare(b.filingDate))
+  if (sortKey.value === 'dateDesc')  result = [...result].sort((a, b) => b.filingDate.localeCompare(a.filingDate))
+
+  return result
+})
+
+function statusClass(status) {
+  const s = status.join(' ')
+  if (s.includes('Granted'))   return 'bg-[#2ecc71]/10 text-[#2ecc71] group-hover:bg-[#2ecc71] group-hover:text-[#eff2f0]'
+  if (s.includes('Pending'))   return 'bg-[#e6a817]/10 text-[#e6a817] group-hover:bg-[#e6a817] group-hover:text-[#eff2f0]'
+  if (s.includes('Licensed'))  return 'bg-[#3b9edd]/10 text-[#3b9edd] group-hover:bg-[#3b9edd] group-hover:text-[#eff2f0]'
+  if (s.includes('Abandoned')) return 'bg-[#e05c5c]/10 text-[#e05c5c] group-hover:bg-[#e05c5c] group-hover:text-[#eff2f0]'
+  return 'bg-white/10 text-white/60 group-hover:bg-white/80 group-hover:text-[#eff2f0]'
+}
+</script>
+
+
 <template>
   <div class="min-h-screen bg-[#1a2e22] font-sans">
 
@@ -129,9 +233,9 @@
     <!-- Table -->
     <div class="px-4 sm:px-6 pb-8">
       <div class="rounded-xl overflow-hidden border border-white/10">
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto overflow-y-auto max-h-[60vh]">
           <table class="w-full border-collapse text-sm min-w-[700px]">
-            <thead>
+            <thead class="sticky top-0 z-10">
               <tr class="bg-[#263e30] text-[#9ecfa8]">
                 <th class="w-8 py-3 px-3 text-center font-semibold text-xs tracking-wider">#</th>
                 <th class="py-3 px-3 text-left font-semibold text-xs tracking-wider">Title</th>
@@ -198,123 +302,7 @@
   </div>
 </template>
 
-<script setup>
-import { ref, computed, reactive } from 'vue'
-import { ipRecords } from '@/data/ip.js'
-
-defineEmits(['view'])
-
-const rows = ref([...ipRecords])
-
-// --- Toolbar state ---
-const search       = ref('')
-const filterStatus = ref('')
-const filterClass  = ref('')
-const sortKey      = ref('')
-
-// --- Form state ---
-const showForm  = ref(false)
-const editingId = ref(null)
-const form = reactive({ title: '', inventors: '', filingDate: '', classification: '', status: '' })
-
-const blankForm = () => ({ title: '', inventors: '', filingDate: '', classification: '', status: '' })
-
-function openForm(row = null) {
-  if (row) {
-    editingId.value     = row.id
-    form.title          = row.title
-    form.inventors      = row.inventors.join(', ')
-    form.filingDate     = row.filingDate
-    form.classification = row.classification
-    form.status         = row.status[0] ?? ''
-  } else {
-    editingId.value = null
-    Object.assign(form, blankForm())
-  }
-  showForm.value = true
-}
-
-function cancelForm() {
-  showForm.value  = false
-  editingId.value = null
-}
-
-function submitForm() {
-  if (!form.title.trim()) return
-
-  const record = {
-    title:          form.title.trim(),
-    inventors:      form.inventors.split(',').map(s => s.trim()).filter(Boolean),
-    filingDate:     form.filingDate,
-    classification: form.classification,
-    status:         [form.status],
-  }
-
-  if (editingId.value) {
-    const idx = rows.value.findIndex(r => r.id === editingId.value)
-    if (idx !== -1) rows.value[idx] = { ...rows.value[idx], ...record }
-  } else {
-    const newId = Math.max(0, ...rows.value.map(r => r.id)) + 1
-    rows.value.push({ id: newId, ...record })
-  }
-
-  cancelForm()
-}
-
-function deleteRow(id) {
-  rows.value = rows.value.filter(r => r.id !== id)
-}
-
-// --- Filtered + sorted view ---
-const displayedRows = computed(() => {
-  let result = rows.value
-
-  const q = search.value.toLowerCase()
-  if (q) result = result.filter(r =>
-    r.title.toLowerCase().includes(q) ||
-    r.inventors.join(' ').toLowerCase().includes(q) ||
-    r.classification.toLowerCase().includes(q) ||
-    r.status.join(' ').toLowerCase().includes(q)
-  )
-
-  if (filterStatus.value)
-    result = result.filter(r => r.status.includes(filterStatus.value))
-
-  if (filterClass.value)
-    result = result.filter(r => r.classification === filterClass.value)
-
-  if (sortKey.value === 'title')     result = [...result].sort((a, b) => a.title.localeCompare(b.title))
-  if (sortKey.value === 'titleDesc') result = [...result].sort((a, b) => b.title.localeCompare(a.title))
-  if (sortKey.value === 'date')      result = [...result].sort((a, b) => a.filingDate.localeCompare(b.filingDate))
-  if (sortKey.value === 'dateDesc')  result = [...result].sort((a, b) => b.filingDate.localeCompare(a.filingDate))
-
-  return result
-})
-
-function statusClass(status) {
-  const s = status.join(' ')
-  if (s.includes('Granted'))   return 'bg-[#2ecc71]/10 text-[#2ecc71] group-hover:bg-[#2ecc71] group-hover:text-[#eff2f0]'
-  if (s.includes('Pending'))   return 'bg-[#e6a817]/10 text-[#e6a817] group-hover:bg-[#e6a817] group-hover:text-[#eff2f0]'
-  if (s.includes('Licensed'))  return 'bg-[#3b9edd]/10 text-[#3b9edd] group-hover:bg-[#3b9edd] group-hover:text-[#eff2f0]'
-  if (s.includes('Abandoned')) return 'bg-[#e05c5c]/10 text-[#e05c5c] group-hover:bg-[#e05c5c] group-hover:text-[#eff2f0]'
-  return 'bg-white/10 text-white/60 group-hover:bg-white/80 group-hover:text-[#eff2f0]'
-}
-</script>
 
 <style scoped>
-@reference "@/style.css";
 
-.field {
-  @apply w-full rounded-lg bg-[#1a2e22] border border-white/10 px-3 py-2 text-sm text-white placeholder-white/20 outline-none focus:border-[#9ecfa8]/50 transition-colors;
-}
-
-.slide-form-enter-active,
-.slide-form-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-.slide-form-enter-from,
-.slide-form-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
-}
 </style>

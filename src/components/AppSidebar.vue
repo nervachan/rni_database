@@ -1,20 +1,10 @@
 <script setup>
 
 import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
 import { ArrowLeftStartOnRectangleIcon, Bars3Icon } from '@heroicons/vue/24/solid' //Sidebar Icons
 import { HomeIcon, BookOpenIcon } from '@heroicons/vue/24/outline' //RSO Icons
 import { LightBulbIcon, ShieldCheckIcon } from '@heroicons/vue/24/outline'//INTTO Icons
 import { UserIcon, CircleStackIcon, BellIcon } from '@heroicons/vue/24/outline' // Super Admin Icons
-
-const router = useRouter()
-const auth = useAuthStore()
-
-function handleLogout() {
-    auth.logout()
-    router.push('/login')
-}
 
 const props = defineProps({
     role: {
@@ -55,15 +45,16 @@ function closeMobileMenu() {
 </script>
 
 <template>
-    <div class="w-full min-w-full md:w-auto md:h-screen md:flex-shrink-0">
+    <div class="w-full md:w-auto md:h-screen md:flex-shrink-0">
     <!--  Mobile View NavBar -->
     <div class="Mobile-NavBar md:hidden w-screen max-w-full h-[75px] bg-[#263e30] relative flex items-center justify-between p-4">
-        <button class="Logout-Button text-white w-8 h-8 hover:text-red-500 hover:bg-white rounded-sm flex flex-row justify-center items-center transition-all duration-300" @click="handleLogout"><ArrowLeftStartOnRectangleIcon class="h-5 w-5" /></button>
+        <button class="Logout-Button text-white w-8 h-8 hover:text-red-500 hover:bg-white rounded-sm flex flex-row justify-center items-center transition-all duration-300"><ArrowLeftStartOnRectangleIcon class="h-5 w-5" /></button>
         <span class="absolute left-1/2 -translate-x-1/2 text-white">{{ props.role }}</span>
-        <button class="Collapse-Button text-white hover:text-[#263e30] hover:bg-white rounded-sm w-6 h-6 flex flex-row justify-center items-center" @click="isMobileOpen = !isMobileOpen"><Bars3Icon class="h-5 w-5"/></button>
+        <button :class="['Collapse-Button text-white hover:text-[#263e30] hover:bg-white rounded-sm w-8 h-8 flex flex-row justify-center items-center transition-transform duration-300', isMobileOpen ? 'open' : '']" @click="isMobileOpen = !isMobileOpen"><Bars3Icon class="h-5 w-5"/></button>
     </div>
 
-    <div v-show="isMobileOpen" class="NavLinks md:hidden w-screen max-w-full bg-[#263e30] p-2">
+    <transition name="mobile-nav">
+    <div v-if="isMobileOpen" class="NavLinks md:hidden absolute left-0 right-0 top-[75px] bg-[#263e30] p-2 z-50">
         <ul>
             <li v-for="navItem in navItemsForRole" :key="navItem.label">
                 <RouterLink
@@ -78,6 +69,7 @@ function closeMobileMenu() {
             </li>
         </ul>
     </div>
+    </transition>
 
     <!-- Desktop View Sidebar -->
     <div class="Sidebar-Container h-screen bg-[#263e30] hidden md:flex flex-col text-white transition-all duration-300 ease-in-out" :class="isCollapsed ? 'w-16' : 'w-64'">
@@ -134,7 +126,7 @@ function closeMobileMenu() {
             >
                 {{ props.role }}
             </span>
-            <button class="Logout-Button w-8 h-8 hover:text-red-500 hover:bg-white rounded-sm flex flex-row justify-center items-center transition-all duration-300" @click="handleLogout"><ArrowLeftStartOnRectangleIcon class="h-5 w-5" /></button>
+            <button class="Logout-Button w-8 h-8 hover:text-red-500 hover:bg-white rounded-sm flex flex-row justify-center items-center transition-all duration-300"><ArrowLeftStartOnRectangleIcon class="h-5 w-5" /></button>
         </div>
 
     </div>
@@ -156,5 +148,27 @@ function closeMobileMenu() {
 .fade-label-leave-from {
   opacity: 1;
   transform: translateX(0);
+}
+</style>
+
+<style scoped>
+.mobile-nav-enter-active,
+.mobile-nav-leave-active {
+    transition: transform 0.18s ease, opacity 0.18s ease;
+}
+.mobile-nav-enter-from,
+.mobile-nav-leave-to {
+    transform: translateY(-6px);
+    opacity: 0;
+}
+.mobile-nav-enter-to,
+.mobile-nav-leave-from {
+    transform: translateY(0);
+    opacity: 1;
+}
+.Collapse-Button.open svg {
+    transform: rotate(90deg);
+    transition: transform 0.28s ease;
+    transform-origin: center;
 }
 </style>
