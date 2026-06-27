@@ -103,10 +103,10 @@ function statusClass(status) {
 
 
 <template>
-  <div class="min-h-screen bg-[#1a2e22] font-sans">
+  <div class="min-h-screen bg-gray-100 font-sans">
 
     <!-- Header -->
-    <div class="flex items-center gap-3 border-b border-white/10 px-4 sm:px-6 py-4">
+    <div class="flex items-center gap-3 border-b bg-[#263e30] border-white/10 px-4 sm:px-6 py-4">
       <span class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#263e30] text-[#9ecfa8] border border-white/10 text-lg">◎</span>
       <div>
         <p class="text-xs font-semibold uppercase tracking-widest text-[#9ecfa8]">Intellectual Property Management</p>
@@ -117,15 +117,15 @@ function statusClass(status) {
     <!-- Toolbar -->
     <div class="px-4 sm:px-6 py-4 flex flex-wrap items-center gap-3">
       <!-- Search -->
-      <div class="flex items-center gap-2 bg-[#263e30] border border-white/10 rounded-full px-4 py-2 w-64">
-        <svg class="w-4 h-4 text-[#9ecfa8] shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <div class="flex items-center gap-2 bg-white border border-white/10 rounded-full px-4 py-2 w-64 shadow-xl">
+        <svg class="w-4 h-4 text-black shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
         </svg>
         <input
           v-model="search"
           type="text"
           placeholder="Search records..."
-          class="bg-transparent outline-none text-sm text-white placeholder-white/30 w-full"
+          class="bg-transparent outline-none text-sm text-black placeholder-black/30 w-full"
           aria-label="Search IP records"
         />
       </div>
@@ -133,7 +133,7 @@ function statusClass(status) {
       <!-- Filter by status -->
       <select
         v-model="filterStatus"
-        class="bg-[#263e30] border border-white/10 rounded-full px-4 py-2 text-sm text-white/70 outline-none cursor-pointer hover:border-[#9ecfa8]/40 transition-colors"
+        class="bg-white border border-white/10 rounded-full px-4 py-2 text-sm text-black/70 outline-none cursor-pointer hover:border-[#9ecfa8]/40 transition-colors shadow-xl"
       >
         <option value="">All statuses</option>
         <option value="Pending">Pending</option>
@@ -145,7 +145,7 @@ function statusClass(status) {
       <!-- Filter by classification -->
       <select
         v-model="filterClass"
-        class="bg-[#263e30] border border-white/10 rounded-full px-4 py-2 text-sm text-white/70 outline-none cursor-pointer hover:border-[#9ecfa8]/40 transition-colors"
+        class="bg-white border border-white/10 rounded-full px-4 py-2 text-sm text-black/70 outline-none cursor-pointer hover:border-[#9ecfa8]/40 transition-colors shadow-xl"
       >
         <option value="">All classifications</option>
         <option value="Patent">Patent</option>
@@ -159,7 +159,7 @@ function statusClass(status) {
       <!-- Sort -->
       <select
         v-model="sortKey"
-        class="bg-[#263e30] border border-white/10 rounded-full px-4 py-2 text-sm text-white/70 outline-none cursor-pointer hover:border-[#9ecfa8]/40 transition-colors"
+        class="bg-white border border-white/10 rounded-full px-4 py-2 text-sm text-black/70 outline-none cursor-pointer hover:border-[#9ecfa8]/40 transition-colors shadow-xl"
       >
         <option value="">Sort by...</option>
         <option value="title">Title A–Z</option>
@@ -170,7 +170,7 @@ function statusClass(status) {
 
       <!-- Add -->
       <button
-        class="ml-auto flex items-center gap-1.5 bg-[#263e30] border border-[#9ecfa8]/40 text-[#9ecfa8] text-xs font-semibold px-4 py-2 rounded-full hover:bg-[#9ecfa8] hover:text-[#1a2e22] transition-colors"
+        class="ml-auto flex items-center gap-1.5 bg-grey-100 border border-[#9ecfa8]/40 text-[#9ecfa8] text-xs font-semibold px-4 py-2 rounded-full hover:bg-[#9ecfa8] hover:text-[#1a2e22] transition-colors shadow-xl"
         @click="openForm()"
       >
         <span class="text-base leading-none">+</span> Add Record
@@ -179,26 +179,26 @@ function statusClass(status) {
 
     <!-- Inline add/edit form -->
     <transition name="slide-form">
-      <div v-if="showForm" class="mx-4 sm:mx-6 mb-4 rounded-xl border border-[#9ecfa8]/20 bg-[#263e30] p-5">
+      <div v-if="showForm" class="mx-4 sm:mx-6 mb-4 rounded-xl border border-[#9ecfa8]/20 bg-white p-5">
         <p class="text-xs font-semibold uppercase tracking-widest text-[#9ecfa8] mb-4">
           {{ editingId ? 'Edit Record' : 'New Record' }}
         </p>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <div class="flex flex-col gap-1">
-            <label class="text-[10px] text-white/40 uppercase tracking-wider">Title</label>
-            <input v-model="form.title" class="field" placeholder="IP title" />
+            <label class="text-[10px] text-black/40 uppercase tracking-wider">Title</label>
+            <input v-model="form.title" class="field bg-zinc-100 rounded-xl p-1" placeholder="IP title"/>
           </div>
           <div class="flex flex-col gap-1">
-            <label class="text-[10px] text-white/40 uppercase tracking-wider">Inventors (comma-separated)</label>
-            <input v-model="form.inventors" class="field" placeholder="e.g. Juan Dela Cruz, Maria Santos" />
+            <label class="text-[10px] text-black/40 uppercase tracking-wider">Inventors (comma-separated)</label>
+            <input v-model="form.inventors" class="field bg-zinc-100 rounded-xl p-1" placeholder="e.g. Juan Dela Cruz, Maria Santos" />
           </div>
           <div class="flex flex-col gap-1">
-            <label class="text-[10px] text-white/40 uppercase tracking-wider">Filing Date</label>
-            <input v-model="form.filingDate" type="date" class="field" />
+            <label class="text-[10px] text-black/40 uppercase tracking-wider">Filing Date</label>
+            <input v-model="form.filingDate" type="date" class="field bg-zinc-100 rounded-xl p-1" />
           </div>
           <div class="flex flex-col gap-1">
-            <label class="text-[10px] text-white/40 uppercase tracking-wider">Classification</label>
-            <select v-model="form.classification" class="field">
+            <label class="text-[10px] text-black/40 uppercase tracking-wider">Classification</label>
+            <select v-model="form.classification" class="field bg-zinc-100 rounded-xl p-1">
               <option value="">Select...</option>
               <option>Patent</option>
               <option>Trademark</option>
@@ -209,8 +209,8 @@ function statusClass(status) {
             </select>
           </div>
           <div class="flex flex-col gap-1">
-            <label class="text-[10px] text-white/40 uppercase tracking-wider">Status</label>
-            <select v-model="form.status" class="field">
+            <label class="text-[10px] text-black/40 uppercase tracking-wider">Status</label>
+            <select v-model="form.status" class="field bg-zinc-100 rounded-xl p-1">
               <option value="">Select...</option>
               <option>Pending</option>
               <option>Granted</option>
@@ -220,7 +220,7 @@ function statusClass(status) {
           </div>
         </div>
         <div class="mt-4 flex items-center gap-2 justify-end">
-          <button @click="cancelForm" class="px-4 py-2 rounded-full text-xs text-white/50 hover:text-white border border-white/10 hover:border-white/30 transition-colors">
+          <button @click="cancelForm" class="px-4 py-2 rounded-full text-xs text-black/150 hover:text-white border border-white/10 hover:border-white/30 transition-colors bg-zinc-300 rounded-xl p-1">
             Cancel
           </button>
           <button @click="submitForm" class="px-4 py-2 rounded-full text-xs font-semibold bg-[#9ecfa8] text-[#1a2e22] hover:opacity-90 transition-opacity">
@@ -232,7 +232,7 @@ function statusClass(status) {
 
     <!-- Table -->
     <div class="px-4 sm:px-6 pb-8">
-      <div class="rounded-xl overflow-hidden border border-white/10">
+      <div class="rounded-xl overflow-hidden border border-white/10 shadow-xl">
         <div class="overflow-x-auto overflow-y-auto max-h-[60vh]">
           <table class="w-full border-collapse text-sm min-w-[700px]">
             <thead class="sticky top-0 z-10">
@@ -251,7 +251,7 @@ function statusClass(status) {
                 v-for="(row, i) in displayedRows"
                 :key="row.id"
                 class="border-b border-white/5 transition-colors group cursor-default"
-                :class="i % 2 === 0 ? 'bg-[#b0b2b1] hover:bg-gradient-to-r from-[#28462e] to-[#3a5c40]' : 'bg-[#787a79] hover:bg-gradient-to-r from-[#28462e] to-[#3a5c40] '"
+                :class="i % 2 === 0 ? 'bg-white hover:bg-gradient-to-r from-[#28462e] to-[#3a5c40]' : 'bg-grey-200 hover:bg-gradient-to-r from-[#28462e] to-[#3a5c40] '"
               >
                 <td class="py-3 px-3 text-xs text-center text-black/30 group-hover:text-[#eff2f0]">{{ i + 1 }}</td>
                 <td class="py-3 px-3 text-black group-hover:text-[#eff2f0] max-w-[160px]">
@@ -292,7 +292,7 @@ function statusClass(status) {
                 </td>
               </tr>
               <tr v-if="displayedRows.length === 0">
-                <td colspan="7" class="py-12 text-center text-white/30 text-sm">No records match your search.</td>
+                <td colspan="7" class="py-12 text-center text-/30 text-sm">No records match your search.</td>
               </tr>
             </tbody>
           </table>
