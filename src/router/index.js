@@ -6,6 +6,7 @@ import SuperAdminView from '../views/SuperAdminView.vue'
 import RSOView from '../views/RSOView.vue'
 import INTTOView from '../views/INTTOView.vue'
 import SuperAdminDashboard from '../views/super-admin-pages/SuperAdminDashboard.vue'
+import RSODashboard from '../views/rso-pages/RSODashboard.vue'
 
 const routes = [
     { path: '/', redirect: '/app/super-admin/dashboard'},
@@ -29,7 +30,7 @@ const routes = [
                 path: 'rso-admin',
                 component: RSOView,
                 children: [
-                    {path: 'dashboard', name: 'RSODashboard', component: {template: '<div>RSODashboard</div>'}},
+                    {path: 'dashboard', name: 'RSODashboard', component: RSODashboard},
                     {path: 'research-entry-management', name: 'ResearchEntryManagement', component: {template: '<div>ResearchEntryManagement</div>'}},
                 ]
             },
