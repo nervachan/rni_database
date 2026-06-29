@@ -6,6 +6,14 @@ import SuperAdminView from '../views/SuperAdminView.vue'
 import RSOView from '../views/RSOView.vue'
 import INTTOView from '../views/INTTOView.vue'
 import SuperAdminDashboard from '../views/super-admin-pages/SuperAdminDashboard.vue'
+import userMgmt from '../views/super-admin-pages/userMgmt.vue'
+import logs from '../views/super-admin-pages/logs.vue'
+import appliAndNotifs from '../views/super-admin-pages/appliAndNotifs.vue'
+import RSODashboard from '../views/rso-pages/RSODashboard.vue'
+import resEntryMgmt from '../views/rso-pages/resEntryMgmt.vue'
+import inttoDashboard from '../views/intto-pages/inttoDashboard.vue'
+import startupMgmt from '../views/intto-pages/startupManagement.vue'
+import IPMgmt from '../views/intto-pages/ipManagement.vue'
 
 const routes = [
     { path: '/', redirect: '/app/super-admin/dashboard'},
@@ -20,26 +28,26 @@ const routes = [
                 component: SuperAdminView,
                 children: [
                     {path: 'dashboard', name: 'SuperAdminDashboard', component: SuperAdminDashboard},
-                    {path: 'user-management', name: 'UserManagement', component: {template: '<div>UserManagement</div>'}},
-                    {path: 'logs', name: 'Logs', component: {template: '<div>Logs</div>'}},
-                    {path: 'applications-and-notifications', name: 'ApplicationsAndNotifications', component: {template: '<div>ApplicationsAndNotifications</div>'}},
+                    {path: 'user-management', name: 'UserManagement', component: userMgmt},
+                    {path: 'logs', name: 'Logs', component: logs},
+                    {path: 'applications-and-notifications', name: 'ApplicationsAndNotifications', component: appliAndNotifs},
                 ]
             },
             {
                 path: 'rso-admin',
                 component: RSOView,
                 children: [
-                    {path: 'dashboard', name: 'RSODashboard', component: {template: '<div>RSODashboard</div>'}},
-                    {path: 'research-entry-management', name: 'ResearchEntryManagement', component: {template: '<div>ResearchEntryManagement</div>'}},
+                    {path: 'dashboard', name: 'RSODashboard', component: RSODashboard},
+                    {path: 'research-entry-management', name: 'ResearchEntryManagement', component: resEntryMgmt},
                 ]
             },
             {
                 path: 'intto-admin',
                 component: INTTOView,
                 children: [
-                    {path: 'dashboard', name: 'INTTODashboard', component: {template: '<div>INTTODashboard</div>'}},
-                    {path: 'ip-management', name: 'IPManagement', component: {template: '<div>IPManagement</div>'}},
-                    {path: 'startup-management', name: 'StartupManagement', component: {template: '<div>StartupManagement</div>'}},
+                    {path: 'dashboard', name: 'INTTODashboard', component: inttoDashboard},
+                    {path: 'ip-management', name: 'IPManagement', component: IPMgmt},
+                    {path: 'startup-management', name: 'StartupManagement', component: startupMgmt},
                 ]
             }
         ]
