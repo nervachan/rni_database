@@ -35,7 +35,7 @@ const recentEntries = [
             <div class="RecEntriesTable md:col-span-2">
                 <div class="mb-3 flex items-center justify-between">
                     <h2 class="text-lg font-semibold text-gray-800">Recent Entries</h2>
-                    <RouterLink to="/app/rso-admin/research-entry-management" class="rounded-md border border-gray-400 px-2 py-1 text-xs font-medium text-black transition hover:bg-gray-300">See All</RouterLink>
+                    <RouterLink to="/app/rso-admin/research-entry-management" class="rounded-md ring-1 ring-gray-400 px-2 py-1 text-xs font-medium text-black transition hover:bg-gray-300">See All</RouterLink>
                 </div>
 
                 <div class="overflow-x-auto rounded-lg bg-white p-3 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]">
