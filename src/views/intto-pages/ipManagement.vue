@@ -106,18 +106,18 @@ function statusClass(status) {
   <div class="min-h-screen bg-gray-100 font-sans">
 
     <!-- Header -->
-    <div class="flex items-center gap-3 border-b bg-[#263e30] border-white/10 px-4 sm:px-6 py-4">
-      <span class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#263e30] text-[#9ecfa8] border border-white/10 text-lg">◎</span>
+    <div class="flex items-center gap-3 border-b bg-white border-white/10 px-4 sm:px-6 py-4 rounded-2xl shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]">
+      <span class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#263e30] text-white border border-white/10 text-lg">◎</span>
       <div>
-        <p class="text-xs font-semibold uppercase tracking-widest text-[#9ecfa8]">Intellectual Property Management</p>
-        <p class="text-[11px] text-white/40 mt-0.5">Track and manage IP filings and classifications</p>
+        <p class="text-xs font-semibold uppercase tracking-widest text-black">Intellectual Property Management</p>
+        <p class="text-[11px] text-slate-500 mt-0.5">Track and manage IP filings and classifications</p>
       </div>
     </div>
 
     <!-- Toolbar -->
     <div class="px-4 sm:px-6 py-4 flex flex-wrap items-center gap-3">
       <!-- Search -->
-      <div class="flex items-center gap-2 bg-white border border-white/10 rounded-full px-4 py-2 w-64 shadow-xl">
+      <div class="flex items-center gap-2 bg-white border border-white/10 rounded-full px-4 py-2 w-64 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]">
         <svg class="w-4 h-4 text-black shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
         </svg>
@@ -133,7 +133,7 @@ function statusClass(status) {
       <!-- Filter by status -->
       <select
         v-model="filterStatus"
-        class="bg-white border border-white/10 rounded-full px-4 py-2 text-sm text-black/70 outline-none cursor-pointer hover:border-[#9ecfa8]/40 transition-colors shadow-xl"
+        class="bg-white border border-white/10 rounded-full px-4 py-2 text-sm text-black/70 outline-none cursor-pointer hover:border-[#9ecfa8]/40 transition-colors shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]"
       >
         <option value="">All statuses</option>
         <option value="Pending">Pending</option>
@@ -145,7 +145,7 @@ function statusClass(status) {
       <!-- Filter by classification -->
       <select
         v-model="filterClass"
-        class="bg-white border border-white/10 rounded-full px-4 py-2 text-sm text-black/70 outline-none cursor-pointer hover:border-[#9ecfa8]/40 transition-colors shadow-xl"
+        class="bg-white border border-white/10 rounded-full px-4 py-2 text-sm text-black/70 outline-none cursor-pointer hover:border-[#9ecfa8]/40 transition-colors shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]"
       >
         <option value="">All classifications</option>
         <option value="Patent">Patent</option>
@@ -159,7 +159,7 @@ function statusClass(status) {
       <!-- Sort -->
       <select
         v-model="sortKey"
-        class="bg-white border border-white/10 rounded-full px-4 py-2 text-sm text-black/70 outline-none cursor-pointer hover:border-[#9ecfa8]/40 transition-colors shadow-xl"
+        class="bg-white border border-white/10 rounded-full px-4 py-2 text-sm text-black/70 outline-none cursor-pointer hover:border-[#9ecfa8]/40 transition-colors shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]"
       >
         <option value="">Sort by...</option>
         <option value="title">Title A–Z</option>
@@ -170,7 +170,7 @@ function statusClass(status) {
 
       <!-- Add -->
       <button
-        class="ml-auto flex items-center gap-1.5 bg-grey-100 border border-[#9ecfa8]/40 text-[#9ecfa8] text-xs font-semibold px-4 py-2 rounded-full hover:bg-[#9ecfa8] hover:text-[#1a2e22] transition-colors shadow-xl"
+        class="ml-auto flex items-center gap-1.5 bg-grey-200 border border-[#9ecfa8]/40 text-black text-xs font-semibold px-4 py-2 rounded-full hover:bg-[#9ecfa8] hover:text-[#1a2e22] transition-colors shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]"
         @click="openForm()"
       >
         <span class="text-base leading-none">+</span> Add Record
@@ -179,26 +179,26 @@ function statusClass(status) {
 
     <!-- Inline add/edit form -->
     <transition name="slide-form">
-      <div v-if="showForm" class="mx-4 sm:mx-6 mb-4 rounded-xl border border-[#9ecfa8]/20 bg-white p-5">
+      <div v-if="showForm" class="mx-4 sm:mx-6 mb-4 rounded-xl border border-white/5 bg-white p-5 shadow-xl shadow-[-3px_3px_6px_rgba(0,0,0,0.25)">
         <p class="text-xs font-semibold uppercase tracking-widest text-[#9ecfa8] mb-4">
           {{ editingId ? 'Edit Record' : 'New Record' }}
         </p>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <div class="flex flex-col gap-1">
             <label class="text-[10px] text-black/40 uppercase tracking-wider">Title</label>
-            <input v-model="form.title" class="field bg-zinc-100 rounded-xl p-1" placeholder="IP title"/>
+            <input v-model="form.title" class="field bg-gray-100 rounded-xl p-1" placeholder="IP title"/>
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-[10px] text-black/40 uppercase tracking-wider">Inventors (comma-separated)</label>
-            <input v-model="form.inventors" class="field bg-zinc-100 rounded-xl p-1" placeholder="e.g. Juan Dela Cruz, Maria Santos" />
+            <input v-model="form.inventors" class="field bg-gray-100 rounded-xl p-1" placeholder="e.g. Juan Dela Cruz, Maria Santos" />
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-[10px] text-black/40 uppercase tracking-wider">Filing Date</label>
-            <input v-model="form.filingDate" type="date" class="field bg-zinc-100 rounded-xl p-1" />
+            <input v-model="form.filingDate" type="date" class="field bg-gray-100 rounded-xl p-1" />
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-[10px] text-black/40 uppercase tracking-wider">Classification</label>
-            <select v-model="form.classification" class="field bg-zinc-100 rounded-xl p-1">
+            <select v-model="form.classification" class="field bg-gray-100 rounded-xl p-1">
               <option value="">Select...</option>
               <option>Patent</option>
               <option>Trademark</option>
@@ -210,7 +210,7 @@ function statusClass(status) {
           </div>
           <div class="flex flex-col gap-1">
             <label class="text-[10px] text-black/40 uppercase tracking-wider">Status</label>
-            <select v-model="form.status" class="field bg-zinc-100 rounded-xl p-1">
+            <select v-model="form.status" class="field bg-gray-100 rounded-xl p-1">
               <option value="">Select...</option>
               <option>Pending</option>
               <option>Granted</option>
@@ -220,7 +220,7 @@ function statusClass(status) {
           </div>
         </div>
         <div class="mt-4 flex items-center gap-2 justify-end">
-          <button @click="cancelForm" class="px-4 py-2 rounded-full text-xs text-black/150 hover:text-white border border-white/10 hover:border-white/30 transition-colors bg-zinc-300 rounded-xl p-1">
+          <button @click="cancelForm" class="px-4 py-2 rounded-full text-xs text-black/150 hover:text-black border border-white/10 hover:border-black hover:bg-white transition-colors bg-zinc-300 rounded-xl p-1">
             Cancel
           </button>
           <button @click="submitForm" class="px-4 py-2 rounded-full text-xs font-semibold bg-[#9ecfa8] text-[#1a2e22] hover:opacity-90 transition-opacity">
@@ -232,11 +232,11 @@ function statusClass(status) {
 
     <!-- Table -->
     <div class="px-4 sm:px-6 pb-8">
-      <div class="rounded-xl overflow-hidden border border-white/10 shadow-xl">
+      <div class="rounded-xl overflow-hidden border border-white/5 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]">
         <div class="overflow-x-auto overflow-y-auto max-h-[60vh]">
           <table class="w-full border-collapse text-sm min-w-[700px]">
             <thead class="sticky top-0 z-10">
-              <tr class="bg-[#263e30] text-[#9ecfa8]">
+              <tr class="bg-[#6e997c] text-white">
                 <th class="w-8 py-3 px-3 text-center font-semibold text-xs tracking-wider">#</th>
                 <th class="py-3 px-3 text-left font-semibold text-xs tracking-wider">Title</th>
                 <th class="py-3 px-3 text-left font-semibold text-xs tracking-wider">Author</th>
@@ -251,16 +251,16 @@ function statusClass(status) {
                 v-for="(row, i) in displayedRows"
                 :key="row.id"
                 class="border-b border-white/5 transition-colors group cursor-default"
-                :class="i % 2 === 0 ? 'bg-white hover:bg-gradient-to-r from-[#28462e] to-[#3a5c40]' : 'bg-grey-200 hover:bg-gradient-to-r from-[#28462e] to-[#3a5c40] '"
+                :class="i % 2 === 0 ? 'bg-white hover:bg-gradient-to-r from-[#c3d7c8] to-#f2f7f3' : 'bg-grey-200 hover:bg-gradient-to-r from-[#c3d7c8] to-[#f2f7f3] '"
               >
-                <td class="py-3 px-3 text-xs text-center text-black/30 group-hover:text-[#eff2f0]">{{ i + 1 }}</td>
-                <td class="py-3 px-3 text-black group-hover:text-[#eff2f0] max-w-[160px]">
+                <td class="py-3 px-3 text-xs text-center text-black/30 group-hover:text-black">{{ i + 1 }}</td>
+                <td class="py-3 px-3 text-black group-hover:text-black max-w-[160px]">
                   <span class="block truncate" :title="row.title">{{ row.title }}</span>
                 </td>
-                <td class="py-3 px-3 text-black/70 group-hover:text-[#eff2f0] max-w-[180px]">
+                <td class="py-3 px-3 text-black/70 group-hover:text-black max-w-[180px]">
                   <span class="block truncate" :title="row.inventors.join(', ')">{{ row.inventors.join(', ') }}</span>
                 </td>
-                <td class="py-3 px-3 text-black/70 group-hover:text-[#eff2f0] whitespace-nowrap">{{ row.filingDate }}</td>
+                <td class="py-3 px-3 text-black/70 group-hover:text-black whitespace-nowrap">{{ row.filingDate }}</td>
                 <td class="py-3 px-3 max-w-[120px]">
                   <span
                     class="block truncate text-xs font-medium px-2 py-0.5 rounded-full w-fit transition-colors"
@@ -268,7 +268,7 @@ function statusClass(status) {
                     :title="row.status.join(', ')"
                   >{{ row.status.join(', ') }}</span>
                 </td>
-                <td class="py-3 px-3 text-black/70 group-hover:text-[#eff2f0]">{{ row.classification }}</td>
+                <td class="py-3 px-3 text-black/70 group-hover:text-black">{{ row.classification }}</td>
                 <td class="py-3 px-3">
                   <div class="flex items-center gap-1.5">
                     <button class="w-7 h-7 flex items-center justify-center rounded border border-[#3b9edd]/50 text-[#3b9edd] hover:bg-[#3b9edd] hover:text-white transition-colors" title="View" @click="$emit('view', row)">

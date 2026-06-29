@@ -71,7 +71,7 @@ const maxStatus = computed(() => Math.max(...ipByStatus.map(i => i.value)))
     <!-- Startup Stat Cards -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-2.5">
       <div v-for="s in startupStats" :key="s.eyebrow"
-        class="rounded-xl px-3 sm:px-4 py-2.5 sm:py-3.5 flex flex-col gap-1 min-h-[75px] sm:min-h-[90px] bg-white border border-white/10 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]">
+        class="rounded-xl px-3 sm:px-4 py-2.5 sm:py-3.5 flex flex-col gap-1 min-h-[75px] sm:min-h-[90px] bg-white border border-white/10 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] ">
         <span class="text-[10px] sm:text-[11px] font-medium text-black">{{ s.eyebrow }}</span>
         <span class="font-bold text-black leading-tight" :class="s.large ? 'text-[18px] sm:text-[22px]' : 'text-[20px] sm:text-[26px]'">{{ s.value }}</span>
         <span class="text-[9px] sm:text-[11px] text-black/40 mt-0.5">{{ s.sub }}</span>
