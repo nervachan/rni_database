@@ -19,9 +19,9 @@ const recentLogs = [
 
 <template>
 
-    <div class="dashPage flex flex-col">
+    <div class="dashPage flex flex-col gap-4">
         <!--4 Stat Cards-->
-        <div class="statCards grid grid-cols-2 md:grid-cols-4 gap-4 p-5">
+        <div class="statCards grid grid-cols-2 md:grid-cols-4 gap-4">
             <div class="totalUsers flex flex-col bg-[#ffffff] rounded-lg p-3 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] gap-1">
                 <span class="w-9 h-9 flex flex-col items-center justify-center rounded-2xl bg-blue-100"><UserIcon class="w-6 h-6 text-blue-500"/></span>
                 <p>Total Users</p>
@@ -48,7 +48,7 @@ const recentLogs = [
         </div>
 
         <!--Logs Preview Section-->
-        <div class="logPrevTable p-5">
+        <div class="logPrevTable">
             <div class="mb-3 flex items-center justify-between">
                 <h2 class="text-lg font-semibold text-gray-800">Recent Logs</h2>
                 <RouterLink to="/app/super-admin/logs" class="rounded-md ring-1 ring-gray-400 px-2 py-1 text-xs font-medium text-black transition hover:bg-gray-300">See All</RouterLink>
