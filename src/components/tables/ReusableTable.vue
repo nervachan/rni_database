@@ -32,9 +32,10 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['action']);
+const emit = defineEmits(['action', 'cell-action']);
 
 const columnMap = computed(() => Object.fromEntries(props.columns.map((col) => [col.key, col])));
+const statusSelectColumn = computed(() => props.columns.find((column) => column.type === 'status-select'));
 
 function formatCell(value, column) {
   if (column?.type === 'link' && value) {
@@ -55,6 +56,19 @@ function getColumnLabel(key) {
 function handleAction(action, row) {
   emit('action', { action, row });
 }
+
+function getRowClasses(row) {
+  const severity = row?.severity;
+  if (severity === 'critical') return '!bg-red-100';
+  if (severity === 'warning') return '!bg-yellow-100';
+  return '!bg-white';
+}
+
+function getStatusClasses(value) {
+  return value === 'Active'
+    ? 'border-green-200 bg-green-50 text-green-700'
+    : 'border-red-200 bg-red-50 text-red-700';
+}
 </script>
 
 <template>
@@ -70,7 +84,7 @@ function handleAction(action, row) {
           <tr v-if="rows.length === 0">
             <td :colspan="columns.length" class="px-3 py-6 text-center text-gray-500">{{ emptyText }}</td>
           </tr>
-          <tr v-for="(row, index) in rows" v-else :key="row.id || index" :class="index % 2 === 0 ? 'bg-white' : 'bg-gray-200'">
+          <tr v-for="(row, index) in rows" v-else :key="row.id || index" :class="[index % 2 === 0 ? 'bg-white' : 'bg-gray-200', getRowClasses(row)]">
             <td v-for="column in columns" :key="`${row.id || index}-${column.key}`" class="px-3 py-2 align-middle" :class="column.widthClass || ''">
               <template v-if="column.type === 'actions'">
                 <div class="flex flex-nowrap items-center gap-2 whitespace-nowrap">
@@ -81,6 +95,15 @@ function handleAction(action, row) {
               </template>
               <template v-else-if="column.type === 'link'">
                 <a :href="row[column.key]" class="block truncate text-blue-600 underline hover:text-blue-800">{{ column.linkText || 'Link' }}</a>
+              </template>
+              <template v-else-if="column.type === 'status-select'">
+                <div class="flex items-center gap-2">
+                  <span class="h-2.5 w-2.5 rounded-full" :class="row[column.key] === 'Active' ? 'bg-green-500' : 'bg-red-500'" />
+                  <select :value="row[column.key]" class="rounded border px-2 py-1 text-sm focus:outline-none" :class="getStatusClasses(row[column.key])" @change="emit('cell-action', { column, row, value: $event.target.value })">
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
               </template>
               <template v-else>
                 <span class="block truncate">{{ formatCell(row[column.key], column) }}</span>
@@ -95,7 +118,7 @@ function handleAction(action, row) {
       <div v-if="rows.length === 0" class="rounded-lg border border-gray-200 bg-white p-4 text-center text-sm text-gray-500">
         {{ emptyText }}
       </div>
-      <div v-for="(row, index) in rows" v-else :key="row.id || index" class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <div v-for="(row, index) in rows" v-else :key="row.id || index" class="rounded-lg border border-gray-200 p-4 shadow-sm" :class="[getRowClasses(row)]">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0 flex-1">
             <p class="truncate font-semibold text-gray-800">{{ row[mobileCardTitleKey] }}</p>
@@ -110,6 +133,16 @@ function handleAction(action, row) {
         <div v-if="mobileCardMetaKeys.length" class="mt-3 space-y-1 text-sm text-gray-600">
           <div v-for="metaKey in mobileCardMetaKeys" :key="metaKey">
             <span class="font-medium text-gray-700">{{ getColumnLabel(metaKey) }}:</span> {{ formatCell(row[metaKey], columnMap[metaKey]) }}
+          </div>
+        </div>
+
+        <div v-if="statusSelectColumn" class="mt-3 flex justify-end">
+          <div class="flex items-center gap-2">
+            <span class="h-2.5 w-2.5 rounded-full" :class="row[statusSelectColumn.key] === 'Active' ? 'bg-green-500' : 'bg-red-500'" />
+            <select :value="row[statusSelectColumn.key]" class="rounded border px-2 py-1 text-sm focus:outline-none" :class="getStatusClasses(row[statusSelectColumn.key])" @change="emit('cell-action', { column: statusSelectColumn, row, value: $event.target.value })">
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
+            </select>
           </div>
         </div>
       </div>

@@ -2,7 +2,7 @@
 const props = defineProps({
   modelValue: {
     type: Object,
-    default: () => ({ from: '', to: '' }),
+    default: () => ({ from: '', to: '', role: '', status: '' }),
   },
   label: {
     type: String,
@@ -11,6 +11,10 @@ const props = defineProps({
   isOpen: {
     type: Boolean,
     default: false,
+  },
+  showStatusFilter: {
+    type: Boolean,
+    default: true,
   },
 });
 
@@ -46,6 +50,42 @@ function applyFilters() {
         <div class="flex flex-1 flex-col gap-1">
           <input :value="modelValue.to" type="date" class="rounded border border-gray-300 p-1 text-sm" @input="updateField('to', $event.target.value)" />
           <label class="text-xs text-gray-500">To</label>
+        </div>
+      </div>
+
+      <div class="space-y-2">
+        <p class="text-sm font-medium text-gray-700">Role</p>
+        <div class="flex flex-wrap gap-3 text-sm text-gray-600">
+          <label class="flex items-center gap-1">
+            <input :checked="modelValue.role === ''" type="radio" value="" @change="updateField('role', $event.target.value)" />
+            All
+          </label>
+          <label class="flex items-center gap-1">
+            <input :checked="modelValue.role === 'INTTO'" type="radio" value="INTTO" @change="updateField('role', $event.target.value)" />
+            INTTO
+          </label>
+          <label class="flex items-center gap-1">
+            <input :checked="modelValue.role === 'RSO'" type="radio" value="RSO" @change="updateField('role', $event.target.value)" />
+            RSO
+          </label>
+        </div>
+      </div>
+
+      <div v-if="showStatusFilter" class="space-y-2">
+        <p class="text-sm font-medium text-gray-700">Status</p>
+        <div class="flex flex-wrap gap-3 text-sm text-gray-600">
+          <label class="flex items-center gap-1">
+            <input :checked="modelValue.status === ''" type="radio" value="" @change="updateField('status', $event.target.value)" />
+            All
+          </label>
+          <label class="flex items-center gap-1">
+            <input :checked="modelValue.status === 'Active'" type="radio" value="Active" @change="updateField('status', $event.target.value)" />
+            Active
+          </label>
+          <label class="flex items-center gap-1">
+            <input :checked="modelValue.status === 'Inactive'" type="radio" value="Inactive" @change="updateField('status', $event.target.value)" />
+            Inactive
+          </label>
         </div>
       </div>
 
