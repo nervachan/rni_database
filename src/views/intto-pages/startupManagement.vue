@@ -115,22 +115,10 @@ function saveProject() {
     <div class="mx-auto max-w-7xl space-y-6">
 
       <!-- Header -->
-      <div class="rounded-[2rem] bg-white p-5 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]">
-        <div class="flex items-center justify-between gap-3">
-          <div class="flex items-center gap-3">
-            <span class="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[#263e30] text-white">◎</span>
-            <p class="text-sm font-semibold uppercase tracking-[0.32em] text-black">Startup Management</p>
-          </div>
-          <div class="flex gap-2">
-            <button
-              @click="openAddProjectModal"
-              class="rounded-2xl bg-[#4d7c5e] px-4 py-2 text-sm font-semibold text-white hover:bg-[#263e30] transition"
-            >+ Project</button>
-            <button
-              @click="openCohortModal"
-              class="rounded-2xl bg-[#263e30] px-4 py-2 text-sm font-semibold text-white hover:bg-[#4d7c5e] transition"
-            >+ Cohort</button>
-          </div>
+      <div class="rounded-2xl bg-white p-5 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]">
+        <div class="flex items-center gap-3">
+          <span class="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[#263e30] text-white">◎</span>
+          <p class="text-sm font-semibold uppercase tracking-[0.32em] text-black">Startup Management</p>
         </div>
       </div>
 
@@ -138,9 +126,13 @@ function saveProject() {
       <div class="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-[280px_1fr_1fr] lg:grid-cols-[280px_1fr] items-start">
 
         <!-- Column 1: Cohorts -->
-        <section class="rounded-[2rem] bg-white p-5 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] self-start">
-          <div class="flex items-center justify-between rounded-[2rem] bg-[#263e30] px-4 py-4">
+        <section class="rounded-xl bg-white p-5 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] self-start">
+          <div class="flex items-center justify-between rounded-[2rem] bg-[#263e30] px-4 py-4 gap-2">
             <span class="text-sm font-semibold uppercase tracking-[0.24em] text-white">All Cohorts</span>
+            <button
+              @click="openCohortModal"
+              class="rounded-2xl bg-[#4d7c5e] px-3 py-1.5 text-xs font-semibold text-white hover:bg-white hover:text-[#263e30] transition shrink-0"
+            >+ Cohort</button>
           </div>
           <ul class="mt-4 space-y-2">
             <li
@@ -164,8 +156,15 @@ function saveProject() {
         </section>
 
         <!-- Column 2: Projects -->
-        <section class="rounded-[2rem] bg-white p-5 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] self-start">
-          <div class="grid gap-3 sm:grid-cols-2 mb-4">
+        <section class="rounded-xl bg-white p-5 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] self-start">
+          <div class="flex items-center justify-between rounded-[2rem] bg-[#263e30] px-4 py-4 gap-2">
+            <span class="text-sm font-semibold uppercase tracking-[0.24em] text-white">Projects</span>
+            <button
+              @click="openAddProjectModal"
+              class="rounded-2xl bg-[#4d7c5e] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#4d7c5e] transition shrink-0"
+            >+ Project</button>
+          </div>
+          <div class="grid gap-3 sm:grid-cols-2 mb-4 p-3">
             <input
               v-model="projectSearch"
               placeholder="Search project..."
@@ -173,9 +172,11 @@ function saveProject() {
             />
             <select
               v-model="genreSearch"
-              class="w-full rounded-[2rem] border border-gray-200 bg-gray-100 px-4 py-3 text-sm text-black outline-none focus:border-[#263e30]"
+              class="w-full rounded-[2rem] border border-gray-200 bg-gray-100 px-4 py-3 text-sm outline-none focus:border-[#263e30] text-black invalid:text-indigo-600"
             >
               <option v-for="g in allGenres" :key="g" :value="g">{{ g }}</option>
+              <option value="" disabled selected hidden> Choose Genre...</option>
+
             </select>
           </div>
           <ul class="space-y-2">
@@ -201,7 +202,8 @@ function saveProject() {
         </section>
 
         <!-- Column 3: Detail -->
-        <section class="rounded-[2rem] bg-white shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] overflow-hidden md:overflow-y-auto md:max-h-[70vh] p-5">
+        <section class="rounded-xl bg-white shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] md:h-[70vh] overflow-hidden">
+          <div class="col3 h-full overflow-y-auto pr-2 rounded-[2rem]">
           <template v-if="activeProject">
             <div class="flex items-center justify-between gap-4 p-5 md:sticky md:top-0 bg-white rounded-t-[2rem] z-10">
               <div>
@@ -222,7 +224,7 @@ function saveProject() {
             </div>
           </template>
           <template v-else>
-            <div class="grid gap-4 grid-cols-1 sm:grid-cols-3">
+            <div class="grid gap-4 grid-cols-1 sm:grid-cols-3 p-5">
               <div class="rounded-[2rem] bg-gray-100 p-4 text-black ">
                 <p class="text-xs uppercase tracking-widest text-slate-600">Total Startups</p>
                 <p class="mt-4 text-3xl font-semibold">{{ localStartups.length }}</p>
@@ -236,7 +238,7 @@ function saveProject() {
                 <p class="mt-4 text-3xl font-semibold">{{ activeCohortCount }}</p>
               </div>
             </div>
-            <div class="mt-4 rounded-[2rem] bg-gray-100 p-5">
+            <div class="mt-4 mx-5 mb-5 rounded-[2rem] bg-gray-100 p-5">
               <h3 class="text-base font-semibold text-black mb-4">Recent Startups</h3>
               <ul class="space-y-3 text-sm text-slate-700">
                 <li v-for="s in recentStartups" :key="s.id" class="border-b border-slate-200 pb-3 last:border-b-0 last:pb-0">
@@ -245,6 +247,7 @@ function saveProject() {
               </ul>
             </div>
           </template>
+          </div>
         </section>
 
       </div>

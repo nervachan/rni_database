@@ -106,8 +106,8 @@ function statusClass(status) {
   <div class="min-h-screen bg-gray-100 font-sans">
 
     <!-- Header -->
-    <div class="flex items-center gap-3 border-b bg-white border-white/10 px-4 sm:px-6 py-4 rounded-2xl shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]">
-      <span class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#263e30] text-white border border-white/10 text-lg">◎</span>
+    <div class="mx-4 sm:mx-6 mt-4 sm:mt-6 flex items-center gap-3 bg-white px-4 sm:px-6 py-6 rounded-2xl shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]">
+      <span class="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[#263e30] text-white">◎</span>
       <div>
         <p class="text-xs font-semibold uppercase tracking-widest text-black">Intellectual Property Management</p>
         <p class="text-[11px] text-slate-500 mt-0.5">Track and manage IP filings and classifications</p>
@@ -117,7 +117,7 @@ function statusClass(status) {
     <!-- Toolbar -->
     <div class="px-4 sm:px-6 py-4 flex flex-wrap items-center gap-3">
       <!-- Search -->
-      <div class="flex items-center gap-2 bg-white border border-white/10 rounded-full px-4 py-2 w-64 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]">
+      <div class="flex items-center gap-2 bg-white border border-white/10 rounded-md px-4 py-2 w-64 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]">
         <svg class="w-4 h-4 text-black shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
         </svg>
@@ -133,7 +133,7 @@ function statusClass(status) {
       <!-- Filter by status -->
       <select
         v-model="filterStatus"
-        class="bg-white border border-white/10 rounded-full px-4 py-2 text-sm text-black/70 outline-none cursor-pointer hover:border-[#9ecfa8]/40 transition-colors shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]"
+        class="bg-white border border-white/10 rounded-md px-4 py-2 text-sm text-black/70 outline-none cursor-pointer hover:border-[#9ecfa8]/40 transition-colors shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]"
       >
         <option value="">All statuses</option>
         <option value="Pending">Pending</option>
@@ -145,7 +145,7 @@ function statusClass(status) {
       <!-- Filter by classification -->
       <select
         v-model="filterClass"
-        class="bg-white border border-white/10 rounded-full px-4 py-2 text-sm text-black/70 outline-none cursor-pointer hover:border-[#9ecfa8]/40 transition-colors shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]"
+        class="bg-white border border-white/10 rounded-md px-4 py-2 text-sm text-black/70 outline-none cursor-pointer hover:border-[#9ecfa8]/40 transition-colors shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]"
       >
         <option value="">All classifications</option>
         <option value="Patent">Patent</option>
@@ -159,7 +159,7 @@ function statusClass(status) {
       <!-- Sort -->
       <select
         v-model="sortKey"
-        class="bg-white border border-white/10 rounded-full px-4 py-2 text-sm text-black/70 outline-none cursor-pointer hover:border-[#9ecfa8]/40 transition-colors shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]"
+        class="bg-white border border-white/10 rounded-md px-4 py-2 text-sm text-black/70 outline-none cursor-pointer hover:border-[#9ecfa8]/40 transition-colors shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]"
       >
         <option value="">Sort by...</option>
         <option value="title">Title A–Z</option>
@@ -170,7 +170,7 @@ function statusClass(status) {
 
       <!-- Add -->
       <button
-        class="ml-auto flex items-center gap-1.5 bg-grey-200 border border-[#9ecfa8]/40 text-black text-xs font-semibold px-4 py-2 rounded-full hover:bg-[#9ecfa8] hover:text-[#1a2e22] transition-colors shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]"
+        class="ml-auto flex items-center gap-1.5 bg-grey-200 border border-[#9ecfa8]/40 text-black text-xs font-semibold px-4 py-2 rounded-md hover:bg-[#9ecfa8] hover:text-[#1a2e22] transition-colors shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]"
         @click="openForm()"
       >
         <span class="text-base leading-none">+</span> Add Record
@@ -180,7 +180,7 @@ function statusClass(status) {
     <!-- Inline add/edit form -->
     <transition name="slide-form">
       <div v-if="showForm" class="mx-4 sm:mx-6 mb-4 rounded-xl border border-white/5 bg-white p-5 shadow-xl shadow-[-3px_3px_6px_rgba(0,0,0,0.25)">
-        <p class="text-xs font-semibold uppercase tracking-widest text-[#9ecfa8] mb-4">
+        <p class="text-xs font-semibold uppercase tracking-widest text-black mb-4">
           {{ editingId ? 'Edit Record' : 'New Record' }}
         </p>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
