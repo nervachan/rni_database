@@ -1,10 +1,11 @@
 <script setup>
-import { ref, computed, reactive, watch } from 'vue'
-import { ipRecords } from '../../data/ip.js'
+import { ref, computed, reactive, watch, onMounted } from 'vue'
+import { getIpRecords, createIpRecord, updateIpRecord, deleteIpRecord } from '../../services/ipService.js'
+import { downloadExport } from '../../utils/exportUtils.js'
 
 defineEmits(['view'])
 
-const rows = ref([...ipRecords])
+const rows = ref([])
 
 // --- Toolbar state ---
 const search       = ref('')
@@ -13,6 +14,10 @@ const filterClass  = ref('')
 const sortKey      = ref('')
 const itemsPerPage = ref(10)
 const currentPage  = ref(1)
+const exportFormat = ref('csv')
+const bulkStatus   = ref('Pending')
+const statusOptions = ['Pending', 'Granted', 'Licensed', 'Abandoned']
+const selectedIds  = ref([])
 
 // --- Form state ---
 const showForm  = ref(false)
@@ -52,7 +57,7 @@ function recordTitleAlreadyExists(title, excludeId = null) {
   return rows.value.some(r => r.id !== excludeId && r.title.trim().toLowerCase() === normalized)
 }
 
-function submitForm() {
+async function submitForm() {
   const title = form.title.trim()
   if (!title) {
     formError.value = 'Title is required.'
@@ -74,10 +79,13 @@ function submitForm() {
 
   if (editingId.value) {
     const idx = rows.value.findIndex(r => r.id === editingId.value)
-    if (idx !== -1) rows.value[idx] = { ...rows.value[idx], ...record }
+    if (idx !== -1) {
+      rows.value[idx] = { ...rows.value[idx], ...record }
+      await updateIpRecord(editingId.value, record)
+    }
   } else {
-    const newId = Math.max(0, ...rows.value.map(r => r.id)) + 1
-    rows.value.push({ id: newId, ...record })
+    const created = await createIpRecord(record)
+    rows.value.push(created)
   }
 
   cancelForm()
@@ -95,14 +103,90 @@ function cancelDelete() {
 
 function deleteRow(id) {
   rows.value = rows.value.filter(r => r.id !== id)
+  selectedIds.value = selectedIds.value.filter(selectedId => selectedId !== id)
+}
+
+const allPageSelected = computed(() => {
+  const pageIds = paginatedRows.value.map(r => r.id)
+  return pageIds.length > 0 && pageIds.every(id => selectedIds.value.includes(id))
+})
+
+const selectedRows = computed(() => rows.value.filter(row => selectedIds.value.includes(row.id)))
+
+function toggleRowSelection(id) {
+  const index = selectedIds.value.indexOf(id)
+  if (index >= 0) selectedIds.value.splice(index, 1)
+  else selectedIds.value.push(id)
+}
+
+function togglePageSelection() {
+  const pageIds = paginatedRows.value.map(r => r.id)
+  if (allPageSelected.value) {
+    selectedIds.value = selectedIds.value.filter(id => !pageIds.includes(id))
+  } else {
+    selectedIds.value = Array.from(new Set([...selectedIds.value, ...pageIds]))
+  }
+}
+
+function clearSelection() {
+  selectedIds.value = []
+}
+
+function bulkUpdateStatus() {
+  selectedIds.value.forEach(id => {
+    const idx = rows.value.findIndex(r => r.id === id)
+    if (idx !== -1) {
+      rows.value[idx] = { ...rows.value[idx], status: [bulkStatus.value] }
+      updateIpRecord(id, { status: [bulkStatus.value] })
+    }
+  })
+}
+
+function bulkDelete() {
+  if (!selectedIds.value.length) return
+  deleteCandidate.value = { title: `${selectedIds.value.length} selected records`, id: null }
+  showDeleteConfirm.value = true
 }
 
 function confirmDelete() {
   if (deleteCandidate.value) {
-    deleteRow(deleteCandidate.value.id)
+    if (deleteCandidate.value.id != null) {
+      deleteRow(deleteCandidate.value.id)
+      deleteIpRecord(deleteCandidate.value.id)
+    } else {
+      selectedIds.value.forEach(id => {
+        deleteRow(id)
+        deleteIpRecord(id)
+      })
+      clearSelection()
+    }
     cancelDelete()
   }
 }
+
+function getExportRows() {
+  return selectedIds.value.length ? selectedRows.value : displayedRows.value
+}
+
+function exportRows() {
+  const rowsToExport = getExportRows()
+  if (!rowsToExport.length) return
+  const headers = ['title', 'inventors', 'filingDate', 'status', 'classification']
+  const payload = rowsToExport.map(r => ({
+    title: r.title,
+    inventors: r.inventors.join(', '),
+    filingDate: r.filingDate,
+    status: r.status.join(', '),
+    classification: r.classification,
+  }))
+  downloadExport('ip_records', headers, payload, exportFormat.value)
+}
+
+async function loadRecords() {
+  rows.value = await getIpRecords()
+}
+
+onMounted(loadRecords)
 
 // --- Filtered + sorted view ---
 const displayedRows = computed(() => {
@@ -224,21 +308,16 @@ function statusClass(status) {
         <option value="dateDesc">Filing date ↓</option>
       </select>
 
+      <!-- Export -->
       <div class="flex items-center gap-2 bg-white border border-white/10 rounded-md px-4 py-2 text-sm text-black/70 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]">
-        <span>Show</span>
-        <select
-          v-model="itemsPerPage"
-          class="bg-transparent outline-none text-sm text-black"
-        >
-          <option :value="5">5</option>
-          <option :value="10">10</option>
-          <option :value="15">15</option>
-          <option :value="20">20</option>
-          <option :value="50">50</option>
+        <label class="sr-only" for="export-format">Export format</label>
+        <select v-model="exportFormat" id="export-format" class="bg-transparent outline-none text-sm text-black">
+          <option value="csv">CSV</option>
+          <option value="pdf">PDF</option>
         </select>
+        <button @click="exportRows()" class="rounded-2xl bg-[#263e30] px-4 py-2 text-xs font-semibold text-white hover:bg-[#4d7c5e] transition">Export</button>
       </div>
 
-      <!-- Add -->
       <button
         class="ml-auto flex items-center gap-1.5 bg-grey-200 border border-[#9ecfa8]/40 text-black text-xs font-semibold px-4 py-2 rounded-md hover:bg-[#9ecfa8] hover:text-[#1a2e22] transition-colors shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]"
         @click="openForm()"
@@ -247,7 +326,24 @@ function statusClass(status) {
       </button>
     </div>
 
-        <!-- Record modal -->
+    <!-- Bulk action bar -->
+    <div v-if="selectedIds.length" class="px-4 sm:px-6 pb-4">
+      <div class="flex flex-wrap items-center gap-3 rounded-2xl bg-white px-4 py-3 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]">
+        <span class="text-sm text-slate-700">{{ selectedIds.length }} selected</span>
+        <div class="flex items-center gap-2">
+          <label class="text-sm text-slate-600">Status</label>
+          <select v-model="bulkStatus" class="rounded-2xl border border-gray-200 bg-white px-4 py-2 text-sm text-black outline-none">
+            <option v-for="status in statusOptions" :key="status" :value="status">{{ status }}</option>
+          </select>
+          <button @click="bulkUpdateStatus" class="rounded-2xl bg-[#263e30] px-4 py-2 text-xs font-semibold text-white hover:bg-[#4d7c5e] transition">Apply status</button>
+        </div>
+        <button @click="bulkDelete" class="rounded-2xl bg-[#e05c5c] px-4 py-2 text-xs font-semibold text-white hover:bg-[#c44343] transition">Delete selected</button>
+        <button @click="exportRows" class="rounded-2xl bg-[#3b9edd] px-4 py-2 text-xs font-semibold text-white hover:bg-[#2f8cd2] transition">Export selected</button>
+        <button @click="clearSelection" class="rounded-2xl border border-slate-300 px-4 py-2 text-xs text-slate-700 hover:bg-slate-100 transition">Clear selection</button>
+      </div>
+    </div>
+
+    <!-- Record modal -->
     <transition name="slide-form">
       <div v-if="showForm" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-8" @click.self="cancelForm">
         <div class="w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl">
@@ -320,13 +416,16 @@ function statusClass(status) {
       </div>
     </transition>
 
-    <!-- Table --><!-- Table -->
+    <!-- Table -->
     <div class="px-4 sm:px-6 pb-8">
       <div class="rounded-xl overflow-hidden border border-white/5 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]">
         <div class="overflow-x-auto overflow-y-auto max-h-[60vh]">
           <table class="w-full border-collapse text-sm min-w-[700px]">
             <thead class="sticky top-0 z-10 divide-y divide-gray-200">
               <tr class="bg-[#4d7c5e] text-white">
+                <th class="w-10 py-3 px-3 text-center font-semibold text-xs tracking-wider">
+                  <input type="checkbox" class="h-4 w-4 text-[#263e30]" :checked="allPageSelected" @change="togglePageSelection" aria-label="Select all" />
+                </th>
                 <th class="w-8 py-3 px-3 text-center font-semibold text-xs tracking-wider">#</th>
                 <th class="py-3 px-3 text-left font-semibold text-xs tracking-wider">Title</th>
                 <th class="py-3 px-3 text-left font-semibold text-xs tracking-wider">Author</th>
@@ -341,8 +440,14 @@ function statusClass(status) {
                 v-for="(row, i) in paginatedRows"
                 :key="row.id"
                 class="border-b border-white/5 transition-colors group cursor-default"
-                :class="i % 2 === 0 ? 'bg-white hover:bg-gradient-to-r from-[#c3d7c8] to-#f2f7f3' : 'bg-grey-200 hover:bg-gradient-to-r from-[#c3d7c8] to-[#f2f7f3] '"
+                :class="[
+                  i % 2 === 0 ? 'bg-white hover:bg-gradient-to-r from-[#c3d7c8] to-#f2f7f3' : 'bg-grey-200 hover:bg-gradient-to-r from-[#c3d7c8] to-[#f2f7f3]',
+                  selectedIds.includes(row.id) ? 'bg-[#ebf5ff] ring-2 ring-[#3b9edd]/20' : ''
+                ]"
               >
+                <td class="py-3 px-3 text-center">
+                  <input type="checkbox" class="h-4 w-4 text-[#263e30]" :checked="selectedIds.includes(row.id)" @change.stop="toggleRowSelection(row.id)" aria-label="Select row" />
+                </td>
                 <td class="py-3 px-3 text-xs text-center text-black/30 group-hover:text-black">{{ (currentPage - 1) * itemsPerPage + i + 1 }}</td>
                 <td class="py-3 px-3 text-black group-hover:text-black max-w-[160px]">
                   <span class="block truncate" :title="row.title">{{ row.title }}</span>
@@ -361,11 +466,6 @@ function statusClass(status) {
                 <td class="py-3 px-3 text-black/70 group-hover:text-black">{{ row.classification }}</td>
                 <td class="py-3 px-3">
                   <div class="flex items-center gap-1.5">
-                    <!-- <button class="w-7 h-7 flex items-center justify-center rounded border border-[#3b9edd]/50 text-[#3b9edd] hover:bg-[#3b9edd] hover:text-white transition-colors" title="View" @click="$emit('view', row)">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-                      </svg> -->
-                    <!-- </button> -->
                     <button class="w-7 h-7 flex items-center justify-center rounded border border-[#e6a817]/50 text-[#e6a817] hover:bg-[#e6a817] hover:text-white transition-colors" title="Edit" @click="openForm(row)">
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -382,13 +482,27 @@ function statusClass(status) {
                 </td>
               </tr>
               <tr v-if="displayedRows.length === 0">
-                <td colspan="7" class="py-12 text-center text-/30 text-sm">No records match your search.</td>
+                <td colspan="8" class="py-12 text-center text-black/30 text-sm">No records match your search.</td>
               </tr>
             </tbody>
           </table>
         </div>
+
+        <!-- Table footer: record count + items-per-page + pagination -->
         <div class="border-t border-gray-200 bg-white px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div class="text-sm text-slate-600">Showing {{ paginatedRows.length }} of {{ displayedRows.length }} records</div>
+          <div class="flex items-center gap-2 text-sm text-slate-600">
+            <span>Showing {{ paginatedRows.length }} of {{ displayedRows.length }} records</span>
+            <span class="text-slate-300">|</span>
+            <span>Show</span>
+            <select v-model="itemsPerPage" class="bg-transparent outline-none text-sm text-black">
+              <option :value="5">5</option>
+              <option :value="10">10</option>
+              <option :value="15">15</option>
+              <option :value="20">20</option>
+              <option :value="50">50</option>
+            </select>
+            <span>per page</span>
+          </div>
           <div class="flex items-center gap-2 justify-center">
             <button
               class="rounded border border-gray-300 px-3 py-2 text-xs transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
@@ -412,6 +526,7 @@ function statusClass(status) {
       </div>
     </div>
 
+    <!-- Delete confirmation modal -->
     <transition name="fade">
       <div v-if="showDeleteConfirm" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-8" @click.self="cancelDelete">
         <div class="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl">
@@ -427,7 +542,5 @@ function statusClass(status) {
   </div>
 </template>
 
-
 <style scoped>
-
 </style>

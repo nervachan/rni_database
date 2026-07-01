@@ -17,6 +17,10 @@ const itemsPerPage        = ref(10)
 const currentPage         = ref(1)
 const newProject          = ref({ name: '', genre: '', supporting: '', description: '', logo: '' })
 
+// Temporary file selection state for Add Project modal
+const addSelectedFile = ref(null)
+const addSelectedName = ref('')
+
 const localCohorts  = ref(cohorts.map(c => ({ ...c })))
 const localStartups = ref(startups.map(s => ({ ...s })))
 
@@ -135,6 +139,33 @@ function handleLogoUpload(event, target = 'new') {
   }
   reader.readAsDataURL(file)
 }
+
+function onAddFileSelected(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+  if (file.size > 2 * 1024 * 1024) {
+    projectLogoError.value = 'Logo must be 2MB or smaller.'
+    addSelectedFile.value = null
+    addSelectedName.value = ''
+    return
+  }
+  addSelectedFile.value = file
+  addSelectedName.value = file.name
+  projectLogoError.value = ''
+}
+
+function confirmAddUpload() {
+  const file = addSelectedFile.value
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    newProject.value.logo = reader.result
+    addSelectedFile.value = null
+    addSelectedName.value = ''
+  }
+  reader.readAsDataURL(file)
+}
+ 
 
 function addProject() {
   const name = newProject.value.name.trim()
@@ -470,11 +501,18 @@ function saveProject() {
         />
         <div>
           <label class="mb-2 block text-sm font-medium text-slate-700">Logo (optional)</label>
-          <div class="mb-2 h-24 w-full overflow-hidden rounded-3xl border border-gray-200 bg-slate-100">
+          <div class="mb-2 h-24 w-full overflow-hidden rounded-3xl border border-gray-200 bg-gray-300">
             <img v-if="newProject.logo" :src="newProject.logo" alt="Logo preview" class="h-full w-full object-contain" />
             <div v-else class="flex h-full items-center justify-center text-sm text-slate-500">No logo uploaded</div>
           </div>
-          <input type="file" accept="image/*" @change="handleLogoUpload($event, 'new')" class="w-full text-sm text-black" />
+
+          <input ref="addFileInput" type="file" accept="image/*" @change="onAddFileSelected" class="hidden" />
+          <div class="flex items-center gap-3">
+            <button type="button" @click="$refs.addFileInput.click()" class="rounded-2xl bg-white border border-gray-300 px-4 py-2 text-sm text-black">Choose File</button>
+            <span class="text-sm text-slate-600">{{ addSelectedName || 'No file chosen' }}</span>
+            <button v-if="addSelectedName" type="button" @click="confirmAddUpload" class="ml-auto rounded-2xl bg-[#263e30] px-4 py-2 text-xs font-semibold text-white hover:bg-[#4d7c5e] transition">Upload File</button>
+          </div>
+
           <p v-if="projectLogoError" class="mt-1 text-xs text-red-600">{{ projectLogoError }}</p>
         </div>
       </div>
