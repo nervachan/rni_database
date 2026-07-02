@@ -18,6 +18,8 @@ const exportFormat = ref('csv')
 const bulkStatus   = ref('Pending')
 const statusOptions = ['Pending', 'Granted', 'Licensed', 'Abandoned']
 const selectedIds  = ref([])
+const importError  = ref('')
+const lastBulkStatusChange = ref(null)
 
 // --- Form state ---
 const showForm  = ref(false)
@@ -133,13 +135,39 @@ function clearSelection() {
 }
 
 function bulkUpdateStatus() {
+  if (!selectedIds.value.length) return
+
+  const previousStatus = {}
   selectedIds.value.forEach(id => {
     const idx = rows.value.findIndex(r => r.id === id)
     if (idx !== -1) {
+      previousStatus[id] = [...rows.value[idx].status]
       rows.value[idx] = { ...rows.value[idx], status: [bulkStatus.value] }
       updateIpRecord(id, { status: [bulkStatus.value] })
     }
   })
+
+  lastBulkStatusChange.value = {
+    ids: [...selectedIds.value],
+    previousStatus,
+    appliedStatus: bulkStatus.value,
+  }
+}
+
+function undoBulkStatusChange() {
+  if (!lastBulkStatusChange.value) return
+
+  lastBulkStatusChange.value.ids.forEach(id => {
+    const prev = lastBulkStatusChange.value.previousStatus[id]
+    if (!prev) return
+    const idx = rows.value.findIndex(r => r.id === id)
+    if (idx !== -1) {
+      rows.value[idx] = { ...rows.value[idx], status: prev }
+      updateIpRecord(id, { status: prev })
+    }
+  })
+
+  lastBulkStatusChange.value = null
 }
 
 function bulkDelete() {
@@ -180,6 +208,67 @@ function exportRows() {
     classification: r.classification,
   }))
   downloadExport('ip_records', headers, payload, exportFormat.value)
+}
+
+function parseCsv(text) {
+  const lines = text.trim().split(/\r?\n/).filter(line => line.trim())
+  if (!lines.length) return []
+  const headers = lines[0].split(',').map(h => h.trim().toLowerCase())
+  return lines.slice(1).map(line => {
+    const values = line.split(',').map(v => v.trim())
+    const record = {}
+    headers.forEach((key, idx) => {
+      record[key] = values[idx] ?? ''
+    })
+    return record
+  })
+}
+
+async function handleImportFile(event) {
+  const file = event.target.files?.[0]
+  importError.value = ''
+  if (!file) return
+  if (!file.name.toLowerCase().endsWith('.csv')) {
+    importError.value = 'Please import a .csv file.'
+    event.target.value = ''
+    return
+  }
+
+  const reader = new FileReader()
+  reader.onload = async () => {
+    const text = reader.result
+    if (typeof text !== 'string') return
+
+    const rowsToImport = parseCsv(text)
+    if (!rowsToImport.length) {
+      importError.value = 'CSV file is empty or invalid.'
+      event.target.value = ''
+      return
+    }
+
+    const requiredFields = ['title', 'inventors', 'filingdate', 'status', 'classification']
+    const invalidRow = rowsToImport.find(row => !requiredFields.every(field => row[field] != null && row[field].trim()))
+    if (invalidRow) {
+      importError.value = 'CSV must include title, inventors, filingDate, status, and classification for every row.'
+      event.target.value = ''
+      return
+    }
+
+    for (const csvRow of rowsToImport) {
+      const record = {
+        title: csvRow.title.trim(),
+        inventors: csvRow.inventors.split(',').map(s => s.trim()).filter(Boolean),
+        filingDate: csvRow.filingdate.trim(),
+        classification: csvRow.classification.trim(),
+        status: [csvRow.status.trim()],
+      }
+      const created = await createIpRecord(record)
+      rows.value.push(created)
+    }
+
+    event.target.value = ''
+  }
+  reader.readAsText(file)
 }
 
 async function loadRecords() {
@@ -308,12 +397,19 @@ function statusClass(status) {
         <option value="dateDesc">Filing date ↓</option>
       </select>
 
-      <button
-        class="ml-auto flex items-center gap-1.5 bg-grey-200 border border-[#9ecfa8]/40 text-black text-xs font-semibold px-4 py-2 rounded-md hover:bg-[#9ecfa8] hover:text-[#1a2e22] transition-colors shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]"
-        @click="openForm()"
-      >
-        <span class="text-base leading-none">+</span> Add Record
-      </button>
+      <div class="flex items-center gap-2 ml-auto">
+        <label class="flex items-center gap-2 rounded-md bg-gray-100 border border-white/10 px-4 py-2 text-xs font-semibold text-black shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] cursor-pointer hover:border-[#9ecfa8]/40">
+          <input type="file" accept=".csv" @change="handleImportFile" class="hidden" />
+          Import CSV
+        </label>
+        <button
+          class="flex items-center gap-1.5 bg-grey-200 border border-[#9ecfa8]/40 text-black text-xs font-semibold px-4 py-2 rounded-md hover:bg-[#9ecfa8] hover:text-[#1a2e22] transition-colors shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]"
+          @click="openForm()"
+        >
+          <span class="text-base leading-none">+</span> Add Record
+        </button>
+      </div>
+      <div v-if="importError" class="mt-2 px-4 sm:px-6 text-sm text-red-600">{{ importError }}</div>
     </div>
 
     <!-- Bulk action bar -->
@@ -326,6 +422,7 @@ function statusClass(status) {
             <option v-for="status in statusOptions" :key="status" :value="status">{{ status }}</option>
           </select>
           <button @click="bulkUpdateStatus" class="rounded-2xl bg-[#263e30] px-4 py-2 text-xs font-semibold text-white hover:bg-[#4d7c5e] transition">Apply status</button>
+        <button @click="undoBulkStatusChange" :disabled="!lastBulkStatusChange" class="rounded-2xl bg-[#8b5cf6] px-4 py-2 text-xs font-semibold text-white hover:bg-[#7c3aed] transition disabled:cursor-not-allowed disabled:opacity-50">Undo status</button>
         </div>
         <button @click="bulkDelete" class="rounded-2xl bg-[#e05c5c] px-4 py-2 text-xs font-semibold text-white hover:bg-[#c44343] transition">Delete selected</button>
         <button @click="exportRows" class="rounded-2xl bg-[#3b9edd] px-4 py-2 text-xs font-semibold text-white hover:bg-[#2f8cd2] transition">Export selected</button>
