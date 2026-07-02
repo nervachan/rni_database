@@ -1,17 +1,28 @@
 <script setup>
 
 import { BookOpenIcon , CalendarIcon } from '@heroicons/vue/24/outline';
+import { computed } from 'vue';
+import { getResearchEntries } from '../../services/researchEntryService';
 
-const avgResearchDuration = 2.5;
-const totalResearch = 1500;
+const researchEntries = getResearchEntries();
+const totalResearch = computed(() => researchEntries.length);
+const avgResearchDuration = computed(() => {
+  if (!researchEntries.length) return 0;
+  const totalDays = researchEntries.reduce((sum, entry) => {
+    if (!entry.startDate || !entry.endDate) return sum;
+    const start = new Date(entry.startDate);
+    const end = new Date(entry.endDate);
+    return sum + Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)));
+  }, 0);
+  return (totalDays / researchEntries.length).toFixed(1);
+});
 
-const recentEntries = [
-  { id: 1, title: 'AI-Powered Crop Disease Detection', authors: 'Maria Santos, Ken Cruz', date: '2026-06-27' },
-  { id: 2, title: 'Green Energy Storage Optimization', authors: 'Rafael Lim, Ana Dela Cruz', date: '2026-06-24' },
-  { id: 3, title: 'Community Health Data Platform', authors: 'Jasmine Torres', date: '2026-06-21' },
-  { id: 4, title: 'Smart Waste Collection Routing', authors: 'Paul Reyes, Liza Buenaventura', date: '2026-06-18' },
-  { id: 5, title: 'Accessible Learning Assistant', authors: 'Cris Villanueva', date: '2026-06-15' },
-]
+const recentEntries = computed(() => researchEntries.slice(0, 5).map((entry) => ({
+  id: entry.id,
+  title: entry.title,
+  authors: entry.coAuthors && entry.coAuthors !== 'N/A' ? `${entry.authors}, ${entry.coAuthors}` : entry.authors,
+  date: entry.startDate,
+})));
 
 </script>
 
@@ -19,7 +30,7 @@ const recentEntries = [
 
     <div class="dashPage flex flex-col">
         <!--2 Stat Cards-->
-        <div class="statCards grid grid-cols-1 md:grid-cols-2 gap-4 p-5">
+        <div class="statCards grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="totalUsers flex flex-col bg-[#ffffff] rounded-lg p-3 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] gap-1">
                 <span class="w-9 h-9 flex flex-col items-center justify-center rounded-2xl bg-blue-100"><BookOpenIcon class="w-6 h-6 text-blue-500"/></span>
                 <p>Total Research Entries</p>
