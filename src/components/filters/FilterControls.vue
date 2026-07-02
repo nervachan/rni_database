@@ -12,6 +12,13 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+<<<<<<< HEAD
+=======
+  showRoleFilter: {
+    type: Boolean,
+    default: true,
+  },
+>>>>>>> 03b6dfa9928365d5d30f90b0bb8fedbe027d3dc5
   showStatusFilter: {
     type: Boolean,
     default: true,
@@ -53,7 +60,11 @@ function applyFilters() {
         </div>
       </div>
 
+<<<<<<< HEAD
       <div class="space-y-2">
+=======
+      <div v-if="showRoleFilter" class="space-y-2">
+>>>>>>> 03b6dfa9928365d5d30f90b0bb8fedbe027d3dc5
         <p class="text-sm font-medium text-gray-700">Role</p>
         <div class="flex flex-wrap gap-3 text-sm text-gray-600">
           <label class="flex items-center gap-1">

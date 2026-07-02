@@ -1,4 +1,5 @@
 <script setup>
+<<<<<<< HEAD
 import { ref, computed, watch } from 'vue'
 import { cohorts, startups } from '../../data/startups.js'
 
@@ -575,12 +576,27 @@ function saveProject() {
       >Save Changes</button>
     </div>
   </div>
+=======
+
+
+
+</script>
+
+<template>
+
+
+>>>>>>> 03b6dfa9928365d5d30f90b0bb8fedbe027d3dc5
 
 </template>
 
 <style scoped>
+<<<<<<< HEAD
 .col3 {
   scrollbar-gutter: stable;
 }
+=======
+
+
+>>>>>>> 03b6dfa9928365d5d30f90b0bb8fedbe027d3dc5
 
 </style>
