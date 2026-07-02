@@ -308,16 +308,6 @@ function statusClass(status) {
         <option value="dateDesc">Filing date ↓</option>
       </select>
 
-      <!-- Export -->
-      <div class="flex items-center gap-2 bg-white border border-white/10 rounded-md px-4 py-2 text-sm text-black/70 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]">
-        <label class="sr-only" for="export-format">Export format</label>
-        <select v-model="exportFormat" id="export-format" class="bg-transparent outline-none text-sm text-black">
-          <option value="csv">CSV</option>
-          <option value="pdf">PDF</option>
-        </select>
-        <button @click="exportRows()" class="rounded-2xl bg-[#263e30] px-4 py-2 text-xs font-semibold text-white hover:bg-[#4d7c5e] transition">Export</button>
-      </div>
-
       <button
         class="ml-auto flex items-center gap-1.5 bg-grey-200 border border-[#9ecfa8]/40 text-black text-xs font-semibold px-4 py-2 rounded-md hover:bg-[#9ecfa8] hover:text-[#1a2e22] transition-colors shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]"
         @click="openForm()"

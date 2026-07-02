@@ -16,10 +16,8 @@ const projectLogoError    = ref('')
 const itemsPerPage        = ref(10)
 const currentPage         = ref(1)
 const newProject          = ref({ name: '', genre: '', supporting: '', description: '', logo: '' })
-
-// Temporary file selection state for Add Project modal
-const addSelectedFile = ref(null)
-const addSelectedName = ref('')
+const editSelectedName    = ref('')
+const addSelectedName     = ref('')
 
 const localCohorts  = ref(cohorts.map(c => ({ ...c })))
 const localStartups = ref(startups.map(s => ({ ...s })))
@@ -68,7 +66,11 @@ const activeCohortCount = computed(() =>
   localStartups.value.filter(s => s.cohortId === activeCohortId.value).length
 )
 
-const recentStartups = computed(() => localStartups.value.slice(0, 6))
+const recentStartups = computed(() =>
+  [...localStartups.value]
+    .sort((a, b) => b.id - a.id)
+    .slice(0, 6)
+)
 
 function cohortName(id) {
   return localCohorts.value.find(c => c.id === id)?.name ?? ''
@@ -118,13 +120,27 @@ function findProjectConflict(name, excludeId = null) {
   return localStartups.value.find(s => s.id !== excludeId && s.name.trim().toLowerCase() === normalized)
 }
 
+function cohortProjectCount(cohortId) {
+  return localStartups.value.filter(s => s.cohortId === cohortId).length
+}
+
+function cohortProjectCountLabel(cohortId) {
+  const count = cohortProjectCount(cohortId)
+  return `${count} ${count === 1 ? 'project' : 'projects'}`
+}
+
 function handleLogoUpload(event, target = 'new') {
   const file = event.target.files?.[0]
   if (!file) return
   if (file.size > 2 * 1024 * 1024) {
     projectLogoError.value = 'Logo must be 2MB or smaller.'
-    if (target === 'new') newProject.value.logo = ''
-    else editForm.value.logo = ''
+    if (target === 'new') {
+      newProject.value.logo = ''
+      addSelectedName.value = ''
+    } else {
+      editForm.value.logo = ''
+      editSelectedName.value = ''
+    }
     return
   }
 
@@ -132,8 +148,10 @@ function handleLogoUpload(event, target = 'new') {
   reader.onload = () => {
     if (target === 'new') {
       newProject.value.logo = reader.result
+      addSelectedName.value = file.name
     } else {
       editForm.value.logo = reader.result
+      editSelectedName.value = file.name
     }
     projectLogoError.value = ''
   }
@@ -141,29 +159,7 @@ function handleLogoUpload(event, target = 'new') {
 }
 
 function onAddFileSelected(event) {
-  const file = event.target.files?.[0]
-  if (!file) return
-  if (file.size > 2 * 1024 * 1024) {
-    projectLogoError.value = 'Logo must be 2MB or smaller.'
-    addSelectedFile.value = null
-    addSelectedName.value = ''
-    return
-  }
-  addSelectedFile.value = file
-  addSelectedName.value = file.name
-  projectLogoError.value = ''
-}
-
-function confirmAddUpload() {
-  const file = addSelectedFile.value
-  if (!file) return
-  const reader = new FileReader()
-  reader.onload = () => {
-    newProject.value.logo = reader.result
-    addSelectedFile.value = null
-    addSelectedName.value = ''
-  }
-  reader.readAsDataURL(file)
+  handleLogoUpload(event, 'new')
 }
  
 
@@ -228,7 +224,7 @@ function saveProject() {
 </script>
 
 <template>
-  <div class="h-screen bg-gray-100 text-white p-4 sm:p-6 overflow-y-auto">
+  <div class="h-screen bg-gray-100 text-white p-4 sm:p-6">
     <div class="mx-auto max-w-7xl space-y-6">
 
       <!-- Header -->
@@ -265,7 +261,7 @@ function saveProject() {
             >
               <div class="min-w-0 flex-1">
                 <p class="truncate text-sm font-semibold">{{ cohort.name }}</p>
-                <p class="truncate text-xs text-slate-400">{{ cohort.value }} projects</p>
+                <p class="truncate text-xs text-slate-400">{{ cohortProjectCountLabel(cohort.id) }}</p>
               </div>
               <span class="text-slate-500">›</span>
             </li>
@@ -289,13 +285,13 @@ function saveProject() {
             />
             <select
               v-model="genreSearch"
-              class="w-full rounded-[2rem] border border-gray-200 bg-gray-100 px-4 py-3 text-sm outline-none focus:border-[#263e30] text-black invalid:text-indigo-600"
+              class="w-full rounded-[2rem] border border-gray-200 bg-gray-100 px-4 py-3 text-sm outline-none focus:border-[#263e30] text-black"
             >
               <option v-for="g in allGenres" :key="g" :value="g">{{ g }}</option>
-              <option value="" disabled selected hidden> Choose Genre...</option>
+              <option value="" disabled selected hidden> Genre...</option>
             </select>
             <div class="flex items-center gap-2">
-              <label class="min-w-max text-xs text-slate-500">Display</label>
+              <label class="min-w-max text-xs text-neutral-600">Display</label>
               <select
                 v-model="itemsPerPage"
                 class="w-full rounded-[2rem] border border-gray-200 bg-gray-100 px-4 py-3 text-sm outline-none focus:border-[#263e30] text-black"
@@ -339,7 +335,7 @@ function saveProject() {
             </div>
             <div class="flex flex-wrap items-center justify-center gap-2">
               <button
-                class="rounded border border-gray-300 px-3 py-2 text-xs transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+                class="rounded border border-gray-300 px-3 py-2 text-xs text-slate-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
                 :disabled="currentPage === 1"
                 @click="currentPage = Math.max(1, currentPage - 1)"
               >Prev</button>
@@ -353,7 +349,7 @@ function saveProject() {
                 {{ page }}
               </button>
               <button
-                class="rounded border border-gray-300 px-3 py-2 text-xs transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+                class="rounded border border-gray-300 px-3 py-2 text-xs text-slate-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
                 :disabled="currentPage === totalPages"
                 @click="currentPage = Math.min(totalPages, currentPage + 1)"
               >Next</button>
@@ -450,7 +446,7 @@ function saveProject() {
           ]"
         >
           <span class="text-sm font-semibold">{{ cohort.name }}</span>
-          <span class="text-xs text-slate-400">{{ cohort.value }} projects</span>
+          <span class="text-xs text-slate-400">{{ cohortProjectCountLabel(cohort.id) }}</span>
         </li>
       </ul>
       <div v-if="cohortModalMode === 'add'" class="space-y-3">
@@ -488,10 +484,10 @@ function saveProject() {
             <option v-for="genre in genreOptions" :key="genre" :value="genre" />
           </datalist>
         </div>
-        <input
-          v-model="newProject.supporting"
-          placeholder="Short description"
-          class="w-full rounded-2xl border border-gray-200 bg-gray-100 px-4 py-3 text-sm text-black outline-none focus:border-[#263e30]"
+          <input
+            v-model="newProject.supporting"
+            placeholder="Short description"
+            class="w-full rounded-2xl border border-gray-200 bg-gray-100 px-4 py-3 text-sm text-black outline-none focus:border-[#263e30]"
         />
         <textarea
           v-model="newProject.description"
@@ -507,10 +503,9 @@ function saveProject() {
           </div>
 
           <input ref="addFileInput" type="file" accept="image/*" @change="onAddFileSelected" class="hidden" />
-          <div class="flex items-center gap-3">
-            <button type="button" @click="$refs.addFileInput.click()" class="rounded-2xl bg-white border border-gray-300 px-4 py-2 text-sm text-black">Choose File</button>
+          <div class="flex flex-wrap items-center gap-3">
+            <button type="button" @click="$refs.addFileInput.click()" class="rounded-2xl bg-[#4d7c5e] px-4 py-2 text-sm font-semibold text-white hover:bg-[#3a6d4f] transition">Choose File</button>
             <span class="text-sm text-slate-600">{{ addSelectedName || 'No file chosen' }}</span>
-            <button v-if="addSelectedName" type="button" @click="confirmAddUpload" class="ml-auto rounded-2xl bg-[#263e30] px-4 py-2 text-xs font-semibold text-white hover:bg-[#4d7c5e] transition">Upload File</button>
           </div>
 
           <p v-if="projectLogoError" class="mt-1 text-xs text-red-600">{{ projectLogoError }}</p>
@@ -565,7 +560,11 @@ function saveProject() {
             <img v-if="editForm.logo" :src="editForm.logo" alt="Logo preview" class="h-full w-full object-contain" />
             <div v-else class="flex h-full items-center justify-center text-sm text-slate-500">No logo uploaded</div>
           </div>
-          <input type="file" accept="image/*" @change="handleLogoUpload($event, 'edit')" class="w-full text-sm text-black" />
+          <input ref="editFileInput" type="file" accept="image/*" @change="handleLogoUpload($event, 'edit')" class="hidden" />
+          <div class="flex flex-wrap items-center gap-3">
+            <button type="button" @click="$refs.editFileInput.click()" class="rounded-2xl bg-[#4d7c5e] px-4 py-2 text-sm font-semibold text-white hover:bg-[#3a6d4f] transition">Choose File</button>
+            <span class="text-sm text-slate-600">{{ editSelectedName || 'No file chosen' }}</span>
+          </div>
           <p v-if="projectLogoError" class="mt-1 text-xs text-red-600">{{ projectLogoError }}</p>
         </div>
       </div>
