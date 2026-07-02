@@ -304,11 +304,9 @@ function handleTableAction({ action, row }) {
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex flex-wrap items-center gap-2 relative">
         <div v-click-outside="closeFilterDropdown" class="relative">
-<<<<<<< HEAD
-          <FilterControls v-model="filterState" :is-open="isFilterOpen" @apply="handleFilterApply" @clear="clearFilters">
-=======
+
           <FilterControls v-model="filterState" :is-open="isFilterOpen" :show-role-filter="false" :show-status-filter="false" @apply="handleFilterApply" @clear="clearFilters">
->>>>>>> 03b6dfa9928365d5d30f90b0bb8fedbe027d3dc5
+
             <template #trigger>
               <button class="flex w-20 items-center justify-center rounded-md border border-gray-300 p-1 text-sm transition hover:bg-gray-300" @click.stop="toggleFilterDropdown">
                 Filter

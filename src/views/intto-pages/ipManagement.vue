@@ -1,5 +1,5 @@
 <script setup>
-<<<<<<< HEAD
+
 import { ref, computed, reactive, watch, onMounted } from 'vue'
 import { getIpRecords, createIpRecord, updateIpRecord, deleteIpRecord } from '../../services/ipService.js'
 import { downloadExport } from '../../utils/exportUtils.js'
@@ -631,21 +631,5 @@ function statusClass(status) {
 </template>
 
 <style scoped>
-=======
 
-
-
-</script>
-
-<template>
-
-
-
-</template>
-
-<style scoped>
-
-
-
->>>>>>> 03b6dfa9928365d5d30f90b0bb8fedbe027d3dc5
 </style>

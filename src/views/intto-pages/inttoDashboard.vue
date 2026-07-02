@@ -1,5 +1,5 @@
 <script setup>
-<<<<<<< HEAD
+
 import { computed } from 'vue'
 import { ipRecords } from '../../data/ip.js'
 import { cohorts, genres, startups } from '../../data/startups.js'
@@ -83,15 +83,14 @@ const statusChartOptions = {
 // function barPercent(value, max) {
 //   return Math.round((value / max) * 100)
 //}
-=======
->>>>>>> 03b6dfa9928365d5d30f90b0bb8fedbe027d3dc5
+
 
 
 
 </script>
 
 <template>
-<<<<<<< HEAD
+
   <div class="dashPage flex flex-col gap-4 p-3 sm:p-5 min-h-screen bg-grey-100">
 
     <!-- Startups Header -->
@@ -173,11 +172,7 @@ const statusChartOptions = {
     </div>
 
   </div>
-=======
-
-
-
->>>>>>> 03b6dfa9928365d5d30f90b0bb8fedbe027d3dc5
+  
 </template>
 
 <style scoped>

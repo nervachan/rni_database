@@ -1,21 +1,5 @@
 <script setup>
-<<<<<<< HEAD
 
-
-
-</script>
-
-<template>
-
-
-
-</template>
-
-<style scoped>
-
-
-
-=======
 import { CheckIcon, XMarkIcon } from '@heroicons/vue/24/outline';
 import { computed, ref } from 'vue';
 import ReusableTable from '../../components/tables/ReusableTable.vue';
@@ -113,5 +97,5 @@ function handleApplicationAction({ action, row }) {
 </template>
 
 <style scoped>
->>>>>>> 03b6dfa9928365d5d30f90b0bb8fedbe027d3dc5
+
 </style>

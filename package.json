@@ -11,17 +11,12 @@
   "dependencies": {
     "@heroicons/vue": "^2.2.0",
     "@tailwindcss/vite": "^4.3.1",
-<<<<<<< HEAD
+  
     "chart.js": "^4.5.1",
     "pinia": "^3.0.4",
     "tailwindcss": "^4.3.1",
     "vue": "^3.5.34",
-    "vue-chartjs": "^5.3.3",
-=======
-    "pinia": "^3.0.4",
-    "tailwindcss": "^4.3.1",
-    "vue": "^3.5.34",
->>>>>>> 03b6dfa9928365d5d30f90b0bb8fedbe027d3dc5
+   "vue-chartjs": "^5.3.3",
     "vue-router": "^5.1.0"
   },
   "devDependencies": {
