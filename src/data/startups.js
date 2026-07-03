@@ -1,15 +1,4 @@
-export const cohorts = [
-  { id: 1, name: 'Cohort 1', value: 4 },
-  { id: 2, name: 'Cohort 2', value: 5 },
-  { id: 3, name: 'Cohort 3', value: 5 },
-]
 
-export const genres = [
-  { label: 'HealthTech', value: 6 },
-  { label: 'FinTech',    value: 3 },
-  { label: 'EdTech',     value: 2 },
-  { label: 'AgriTech',   value: 3 },
-]
 
 export const startups = [
   {
@@ -492,4 +481,21 @@ export const startups = [
     supporting: 'AI document processing platform',
     description: 'VisionForge extracts, classifies, and summarizes information from scanned documents and PDFs, helping organizations automate document-intensive workflows.'
   }
+
+  
 ];
+
+const cohortIds = [...new Set(startups.map(s => s.cohortId))].sort((a, b) => a - b)
+
+export const cohorts = cohortIds.map(id => ({
+  id,
+  name: `Cohort ${id}`,
+  value: startups.filter(s => s.cohortId === id).length,
+}))
+
+const genreCounts = startups.reduce((acc, s) => {
+  acc[s.genre] = (acc[s.genre] || 0) + 1
+  return acc
+}, {})
+
+export const genres = Object.entries(genreCounts).map(([label, value]) => ({ label, value }))

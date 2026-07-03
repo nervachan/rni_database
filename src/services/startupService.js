@@ -1,6 +1,7 @@
-import { cohorts, startups } from '../data/startups.js'
+import { cohorts, genres, startups } from '../data/startups.js'
 
 let localCohorts = cohorts.map(item => ({ ...item }))
+let localGenres = genres.map(item => ({ ...item }))
 let localStartups = startups.map(item => ({ ...item }))
 
 export async function getCohorts() {
@@ -9,6 +10,10 @@ export async function getCohorts() {
 
 export async function getStartups() {
   return localStartups.map(item => ({ ...item }))
+}
+
+export async function getGenres() {
+  return localGenres.map(item => ({ ...item }))
 }
 
 export async function createCohort(payload) {

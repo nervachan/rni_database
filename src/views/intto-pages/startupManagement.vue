@@ -1,9 +1,10 @@
 <script setup>
 
-import { ref, computed, watch } from 'vue'
-import { cohorts, startups } from '../../data/startups.js'
+import { ref, computed, watch, onMounted } from 'vue'
+import { getCohorts, getStartups, createCohort, createStartup, updateStartup } from '../../services/startupService.js'
 
-const activeCohortId  = ref(cohorts[0].id)
+const activeCohortId  = ref(null)
+const loadError = ref ('')
 const activeProjectId = ref(null)
 const projectSearch   = ref('')
 const genreSearch     = ref('')
@@ -20,8 +21,21 @@ const newProject          = ref({ name: '', genre: '', supporting: '', descripti
 const editSelectedName    = ref('')
 const addSelectedName     = ref('')
 
-const localCohorts  = ref(cohorts.map(c => ({ ...c })))
-const localStartups = ref(startups.map(s => ({ ...s })))
+const localCohorts  = ref([])
+const localStartups = ref([])
+
+async function loadData() {
+  loadError.value = ''
+  try {
+    localCohorts.value   = await getCohorts()
+    localStartups.value  = await getStartups()
+    activeCohortId.value = localCohorts.value[0]?.id ?? null
+  } catch (err) {
+    loadError.value = 'Failed to load startup data. ' + err.message
+  }
+}
+
+onMounted(loadData)
 
 const allGenres = computed(() => {
   const inCohort = localStartups.value.filter(s => s.cohortId === activeCohortId.value)
@@ -101,12 +115,16 @@ function nextCohortName() {
   return `Cohort ${nextNumber}`
 }
 
-function addCohort() {
-  const newId = Math.max(...localCohorts.value.map(c => c.id), 0) + 1
+async function addCohort() {
   const name = nextCohortName()
-  localCohorts.value.push({ id: newId, name, value: 0 })
-  activeCohortId.value  = newId
-  showCohortModal.value = false
+  try {
+    const created = await createCohort({ name, value: 0 })
+    localCohorts.value.push(created)
+    activeCohortId.value  = created.id
+    showCohortModal.value = false
+  } catch (err) {
+    loadError.value = 'Failed to create cohort. ' + err.message
+  }
 }
 
 function openAddProjectModal() {
@@ -164,7 +182,7 @@ function onAddFileSelected(event) {
 }
  
 
-function addProject() {
+async function addProject() {
   const name = newProject.value.name.trim()
   if (!name) {
     projectFormError.value = 'Project name is required.'
@@ -177,20 +195,24 @@ function addProject() {
     return
   }
 
-  const newId = Math.max(...localStartups.value.map(s => s.id), 0) + 1
-  localStartups.value.push({
-    id:          newId,
-    cohortId:    activeCohortId.value,
-    name,
-    genre:       newProject.value.genre.trim(),
-    supporting:  newProject.value.supporting.trim(),
-    description: newProject.value.description.trim(),
-    logo:        newProject.value.logo || '',
-  })
+  try {
+    const created = await createStartup({
+      cohortId:    activeCohortId.value,
+      name,
+      genre:       newProject.value.genre.trim(),
+      supporting:  newProject.value.supporting.trim(),
+      description: newProject.value.description.trim(),
+      logo:        newProject.value.logo || '',
+    })
+    localStartups.value.push(created)
 
-  const cohort = localCohorts.value.find(c => c.id === activeCohortId.value)
-  if (cohort) cohort.value += 1
-  showAddProjectModal.value = false
+    const cohort = localCohorts.value.find(c => c.id === activeCohortId.value)
+    if (cohort) cohort.value += 1
+
+    showAddProjectModal.value = false
+  } catch (err) {
+    projectFormError.value = 'Failed to create project. ' + err.message
+  }
 }
 
 const editForm = ref({ id: null, name: '', genre: '', supporting: '', description: '', logo: '' })
@@ -203,7 +225,7 @@ function openEditModal() {
   showProjectModal.value = true
 }
 
-function saveProject() {
+async function saveProject() {
   const name = editForm.value.name.trim()
   if (!name) {
     projectFormError.value = 'Project name is required.'
@@ -216,17 +238,26 @@ function saveProject() {
     return
   }
 
-  const idx = localStartups.value.findIndex(s => s.id === editForm.value.id)
-  if (idx !== -1) {
-    localStartups.value[idx] = { ...editForm.value }
+  try {
+    const updated = await updateStartup(editForm.value.id, { ...editForm.value })
+    const idx = localStartups.value.findIndex(s => s.id === editForm.value.id)
+    if (idx !== -1) {
+      localStartups.value[idx] = updated
+    }
+    showProjectModal.value = false
+  } catch (err) {
+    projectFormError.value = 'Failed to save project. ' + err.message
   }
-  showProjectModal.value = false
 }
 </script>
 
 <template>
   <div class="h-screen bg-gray-100 text-white p-4 sm:p-6">
     <div class="mx-auto max-w-7xl space-y-6">
+      <div v-if="loadError" class="bg-red-50 border border-red-200 text-red-700 text-xs sm:text-sm px-4 py-3 rounded-xl">
+        {{ loadError }}
+      </div>
+
 
       <!-- Header -->
       <div class="rounded-2xl bg-white p-5 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]">
