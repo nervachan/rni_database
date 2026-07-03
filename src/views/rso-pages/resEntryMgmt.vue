@@ -256,6 +256,15 @@ function saveEntry() {
     return;
   }
 
+  if (formEntry.value.startDate && formEntry.value.endDate) {
+    const start = new Date(formEntry.value.startDate);
+    const end = new Date(formEntry.value.endDate);
+    if (end < start) {
+      window.alert('End Date cannot be earlier than Start Date.');
+      return;
+    }
+  }
+
   const payload = {
     title,
     authors,
@@ -431,7 +440,7 @@ function handleTableAction({ action, row }) {
             </div>
             <div>
               <label class="mb-1 block text-sm font-medium text-gray-700">End Date</label>
-              <input v-model="formEntry.endDate" type="date" class="w-full rounded border border-gray-300 p-2 text-sm" />
+              <input v-model="formEntry.endDate" type="date" class="w-full rounded border border-gray-300 p-2 text-sm" :min="formEntry.startDate || undefined" />
             </div>
             <div>
               <label class="mb-1 block text-sm font-medium text-gray-700">ISBN</label>
