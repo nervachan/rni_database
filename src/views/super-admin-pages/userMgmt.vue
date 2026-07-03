@@ -25,6 +25,11 @@ const selectedUser = ref(null);
 const formUser = ref({ id: null, name: '', role: 'INTTO', email: '' });
 const hasUnsavedChanges = ref(false);
 
+// Confirmation modal state
+const confirmModalOpen = ref(false);
+const confirmMessage = ref('');
+const confirmAction = ref(null);
+
 const sortOptions = [
   { value: 'newest', label: 'Newest to Oldest' },
   { value: 'oldest', label: 'Oldest to Newest' },
@@ -123,6 +128,24 @@ function closeSortDropdown() {
   isSortOpen.value = false;
 }
 
+// --- Confirmation modal helpers ---
+function openConfirm(message, action) {
+  confirmMessage.value = message;
+  confirmAction.value = action;
+  confirmModalOpen.value = true;
+}
+
+function handleConfirmYes() {
+  if (confirmAction.value) confirmAction.value();
+  confirmModalOpen.value = false;
+  confirmAction.value = null;
+}
+
+function handleConfirmNo() {
+  confirmModalOpen.value = false;
+  confirmAction.value = null;
+}
+
 function openEditModal(user) {
   selectedUser.value = user;
   formUser.value = { id: user.id, name: user.name, role: user.role, email: user.email };
@@ -143,9 +166,7 @@ function confirmDiscard() {
     return;
   }
 
-  if (window.confirm('Discard the changes you made?')) {
-    closeModal();
-  }
+  openConfirm('Discard the changes you made?', closeModal);
 }
 
 function trackFormChanges() {
@@ -172,7 +193,7 @@ function saveUser() {
     return;
   }
 
-  if (window.confirm('Save changes to this user?')) {
+  openConfirm('Save changes to this user?', () => {
     updateUser(selectedUser.value.id, {
       name,
       role: formUser.value.role,
@@ -180,14 +201,14 @@ function saveUser() {
     });
     users.value = getUsers();
     closeModal();
-  }
+  });
 }
 
 function updateStatus(user, value) {
-  if (window.confirm(`Change ${user.name}'s status to ${value}?`)) {
+  openConfirm(`Change ${user.name}'s status to ${value}?`, () => {
     updateUser(user.id, { status: value });
     users.value = getUsers();
-  }
+  });
 }
 
 function goToPage(page) {
@@ -274,6 +295,7 @@ function handleCellAction({ column, row, value }) {
       </button>
     </div>
 
+    <!-- Edit User Modal -->
     <div v-if="isModalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-8" @click.self="confirmDiscard">
       <div class="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl">
         <div class="mb-4 flex items-center justify-between">
@@ -311,6 +333,21 @@ function handleCellAction({ column, row, value }) {
             </button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div v-if="confirmModalOpen" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4" @click.self="handleConfirmNo">
+      <div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+        <p class="mb-6 text-sm text-gray-800">{{ confirmMessage }}</p>
+        <div class="flex justify-end gap-2">
+          <button class="rounded-md bg-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-300" @click="handleConfirmNo">
+            Cancel
+          </button>
+          <button class="rounded-md bg-[#263e30] px-4 py-2 text-sm font-medium text-white transition hover:opacity-80" @click="handleConfirmYes">
+            Confirm
+          </button>
+        </div>
       </div>
     </div>
   </div>
