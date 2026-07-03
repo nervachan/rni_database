@@ -1,66 +1,88 @@
 <script setup>
 
-import { computed } from 'vue'
-import { ipRecords } from '../../data/ip.js'
-import { cohorts, genres, startups } from '../../data/startups.js'
+import { ref, computed, onMounted } from 'vue'
+import { getIpRecords } from '../../services/ipService.js'
+import { getCohorts, getStartups, getGenres } from '../../services/startupService.js'
 import { Pie } from 'vue-chartjs'
 import { Chart as ChartJS, Title, Tooltip, Legend, ArcElement } from 'chart.js'
 
 ChartJS.register(Title, Tooltip, Legend, ArcElement)
 
-const startupsPerCohort = cohorts
-const startupsByGenre   = genres
+const ipRecords = ref([])
+const cohorts   = ref([])
+const startups  = ref([])
+const genres    = ref([])
+const loadError = ref('')
 
-
-const totalStartups = startups.length
-const totalCohorts  = cohorts.length
-const activeCohort  = cohorts[cohorts.length - 1].name
-const activeCount   = startups.filter(s => s.cohortId === cohorts[cohorts.length - 1].id).length
-const topGenre      = genres.reduce((a, b) => a.value > b.value ? a : b).label
-const topGenreCount = genres.reduce((a, b) => a.value > b.value ? a : b).value
-
-const startupStats = [
-  { eyebrow: 'Total Startups', value: totalStartups, sub: 'All cohorts' },
-  { eyebrow: 'Total Cohorts',  value: totalCohorts,  sub: `Cohort 1–${totalCohorts}` },
-  { eyebrow: 'Active Cohort',  value: activeCohort,  sub: `${activeCount} startups enrolled`, large: true },
-  { eyebrow: 'Top Genre',      value: topGenre,      sub: `${topGenreCount} of ${totalStartups} startups`, large: true },
-]
-
-const maxCohort = computed(() => Math.max(...startupsPerCohort.map(i => i.value)))
-const maxGenre  = computed(() => Math.max(...startupsByGenre.map(i => i.value)))
-
-function barPercent(value, max) {
-  return Math.round((value / max) * 100)
+async function loadData() {
+  loadError.value = ''
+  try {
+    ipRecords.value = await getIpRecords()
+    cohorts.value   = await getCohorts()
+    startups.value  = await getStartups()
+    genres.value    = await getGenres()
+  } catch (err) {
+    loadError.value = 'Failed to load dashboard data. ' + err.message
+  }
 }
 
-const ipByClassification = [
-  { label: 'Patent',            value: ipRecords.filter(r => r.classification === 'Patent').length },
-  { label: 'Trademark',         value: ipRecords.filter(r => r.classification === 'Trademark').length },
-  { label: 'Copyright',         value: ipRecords.filter(r => r.classification === 'Copyright').length },
-  { label: 'Industrial Design', value: ipRecords.filter(r => r.classification === 'Industrial Design').length },
-  { label: 'Trade secret',      value: ipRecords.filter(r => r.classification === 'Trade secret').length },
-  { label: 'Utility model',     value: ipRecords.filter(r => r.classification === 'Utility model').length },
-]
+onMounted(loadData)
 
-const ipByStatus = [
-  { label: 'Pending',   value: ipRecords.filter(r => r.status.includes('Pending')).length,   color: '#e6a817' },
-  { label: 'Granted',   value: ipRecords.filter(r => r.status.includes('Granted')).length,   color: '#2ecc71' },
-]
+const startupsPerCohort = computed(() => cohorts.value)
+const startupsByGenre   = computed(() => genres.value)
 
-const ipStats = [
-  { eyebrow: 'Total IP filings', value: ipRecords.length,                                                                                     sub: 'All classifications' },
-  { eyebrow: 'Pending',          value: ipRecords.filter(r => r.status.includes('Pending')).length,                                           sub: 'Awaiting decision', subClass: 'warn' },
-  { eyebrow: 'Granted',          value: ipRecords.filter(r => r.status.includes('Granted')).length,                                           sub: 'Approved',          subClass: 'ok'   },
-]
+const totalStartups = computed(() => startups.value.length)
+const totalCohorts  = computed(() => cohorts.value.length)
+const activeCohort  = computed(() => cohorts.value.length ? cohorts.value[cohorts.value.length - 1].name : '')
+const activeCount   = computed(() => {
+  const lastCohort = cohorts.value[cohorts.value.length - 1]
+  return lastCohort ? startups.value.filter(s => s.cohortId === lastCohort.id).length : 0
+})
+const topGenre      = computed(() => genres.value.length ? genres.value.reduce((a, b) => a.value > b.value ? a : b).label : '')
+const topGenreCount = computed(() => genres.value.length ? genres.value.reduce((a, b) => a.value > b.value ? a : b).value : 0)
 
-const maxClass  = computed(() => Math.max(...ipByClassification.map(i => i.value)))
-const maxStatus = computed(() => Math.max(...ipByStatus.map(i => i.value)))
+const startupStats = computed(() => [
+  { eyebrow: 'Total Startups', value: totalStartups.value, sub: 'All cohorts' },
+  { eyebrow: 'Total Cohorts',  value: totalCohorts.value,  sub: `Cohort 1–${totalCohorts.value}` },
+  { eyebrow: 'Active Cohort',  value: activeCohort.value,  sub: `${activeCount.value} startups enrolled`, large: true },
+  { eyebrow: 'Top Genre',      value: topGenre.value,      sub: `${topGenreCount.value} of ${totalStartups.value} startups`, large: true },
+])
+
+const maxCohort = computed(() => startupsPerCohort.value.length ? Math.max(...startupsPerCohort.value.map(i => i.value)) : 0)
+const maxGenre  = computed(() => startupsByGenre.value.length ? Math.max(...startupsByGenre.value.map(i => i.value)) : 0)
+
+function barPercent(value, max) {
+  return max ? Math.round((value / max) * 100) : 0
+}
+
+const ipByClassification = computed(() => [
+  { label: 'Patent',            value: ipRecords.value.filter(r => r.classification === 'Patent').length },
+  { label: 'Trademark',         value: ipRecords.value.filter(r => r.classification === 'Trademark').length },
+  { label: 'Copyright',         value: ipRecords.value.filter(r => r.classification === 'Copyright').length },
+  { label: 'Industrial Design', value: ipRecords.value.filter(r => r.classification === 'Industrial Design').length },
+  { label: 'Trade secret',      value: ipRecords.value.filter(r => r.classification === 'Trade secret').length },
+  { label: 'Utility model',     value: ipRecords.value.filter(r => r.classification === 'Utility model').length },
+])
+
+const ipByStatus = computed(() => [
+  { label: 'Pending',   value: ipRecords.value.filter(r => r.status.includes('Pending')).length,   color: '#e6a817' },
+  { label: 'Granted',   value: ipRecords.value.filter(r => r.status.includes('Granted')).length,   color: '#2ecc71' },
+])
+
+const ipStats = computed(() => [
+  { eyebrow: 'Total IP filings', value: ipRecords.value.length,                                                sub: 'All classifications' },
+  { eyebrow: 'Pending',          value: ipRecords.value.filter(r => r.status.includes('Pending')).length,      sub: 'Awaiting decision', subClass: 'warn' },
+  { eyebrow: 'Granted',          value: ipRecords.value.filter(r => r.status.includes('Granted')).length,      sub: 'Approved',          subClass: 'ok'   },
+])
+
+const maxClass  = computed(() => ipByClassification.value.length ? Math.max(...ipByClassification.value.map(i => i.value)) : 0)
+const maxStatus = computed(() => ipByStatus.value.length ? Math.max(...ipByStatus.value.map(i => i.value)) : 0)
 
 const statusChartData = computed(() => ({
-  labels: ipByStatus.map(i => i.label),
+  labels: ipByStatus.value.map(i => i.label),
   datasets: [{
-    data: ipByStatus.map(i => i.value),
-    backgroundColor: ipByStatus.map(i => i.color),
+    data: ipByStatus.value.map(i => i.value),
+    backgroundColor: ipByStatus.value.map(i => i.color),
     borderWidth: 0,
   }],
 }))
@@ -80,18 +102,14 @@ const statusChartOptions = {
   },
 }
 
-// function barPercent(value, max) {
-//   return Math.round((value / max) * 100)
-//}
-
-
-
 
 </script>
-
 <template>
 
   <div class="dashPage flex flex-col gap-4 p-3 sm:p-5 min-h-screen bg-grey-100">
+    <div v-if="loadError" class="bg-red-50 border border-red-200 text-red-700 text-xs sm:text-sm px-4 py-3 rounded-xl">
+      {{ loadError }}
+    </div>
 
     <!-- Startups Header -->
     <h2 class="text-[10px] sm:text-[11px] font-bold tracking-widest uppercase text-[#000000]">Startups</h2>
