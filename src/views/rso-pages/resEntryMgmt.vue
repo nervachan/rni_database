@@ -27,6 +27,10 @@ const isModalOpen = ref(false);
 const modalMode = ref('add');
 const selectedEntry = ref(null);
 const hasUnsavedChanges = ref(false);
+// Confirmation modal
+const confirmModalOpen = ref(false);
+const confirmMessage = ref('');
+const confirmAction = ref(null);
 
 const createEmptyEntry = () => ({
   id: null,
@@ -116,6 +120,26 @@ watch([searchQuery, filterState, sortBy, itemsPerPage], () => {
 
 watch(() => formEntry.value, trackFormChanges, { deep: true });
 
+// Confirmation modal functions
+function openConfirm(message, action) {
+  confirmMessage.value = message;
+  confirmAction.value = action;
+  confirmModalOpen.value = true;
+}
+
+function handleConfirmYes() {
+  const action = confirmAction.value;
+  confirmModalOpen.value = false;
+  confirmAction.value = null;
+  if (action) action();
+}
+
+function handleConfirmNo() {
+  confirmModalOpen.value = false;
+  confirmAction.value = null;
+} 
+//Confirmation modal functions
+
 function toggleFilterDropdown() {
   isFilterOpen.value = !isFilterOpen.value;
   if (isFilterOpen.value) {
@@ -182,7 +206,7 @@ function closeModal() {
 }
 
 function confirmDiscard() {
-  if (modalMode.value === 'view') {
+  if (modalMode.value === 'view' || modalMode.value === 'delete') {
     closeModal();
     return;
   }
@@ -195,9 +219,7 @@ function confirmDiscard() {
     return;
   }
 
-  if (window.confirm('Discard the changes you made?')) {
-    closeModal();
-  }
+  openConfirm('Discard the changes you made?', closeModal);
 }
 
 function trackFormChanges() {
@@ -234,35 +256,36 @@ function saveEntry() {
     return;
   }
 
-  if (window.confirm(modalMode.value === 'add' ? 'Add this research entry?' : 'Save changes to this entry?')) {
-    const payload = {
-      title,
-      authors,
-      coAuthors: formEntry.value.coAuthors.trim(),
-      startDate: formEntry.value.startDate,
-      endDate: formEntry.value.endDate,
-      isbn: formEntry.value.isbn.trim(),
-      scopusLink: formEntry.value.scopusLink.trim(),
-      abstract: formEntry.value.abstract.trim(),
-    };
+  const payload = {
+    title,
+    authors,
+    coAuthors: formEntry.value.coAuthors.trim(),
+    startDate: formEntry.value.startDate,
+    endDate: formEntry.value.endDate,
+    isbn: formEntry.value.isbn.trim(),
+    scopusLink: formEntry.value.scopusLink.trim(),
+    abstract: formEntry.value.abstract.trim(),
+  };
 
-    if (modalMode.value === 'add') {
-      createResearchEntry(payload);
-    } else if (selectedEntry.value) {
-      updateResearchEntry(selectedEntry.value.id, payload);
+  openConfirm(
+    modalMode.value === 'add' ? 'Add this research entry?' : 'Save changes to this entry?',
+    () => {
+      if (modalMode.value === 'add') {
+        createResearchEntry(payload);
+      } else if (selectedEntry.value) {
+        updateResearchEntry(selectedEntry.value.id, payload);
+      }
+      researchEntries.value = getResearchEntries();
+      closeModal();
     }
-
-    researchEntries.value = getResearchEntries();
-    closeModal();
-  }
+  );
 }
 
 function deleteEntry() {
-  if (selectedEntry.value && window.confirm(`Delete "${selectedEntry.value.title}"?`)) {
-    deleteResearchEntry(selectedEntry.value.id);
-    researchEntries.value = getResearchEntries();
-    closeModal();
-  }
+  if (!selectedEntry.value) return;
+  deleteResearchEntry(selectedEntry.value.id);
+  researchEntries.value = getResearchEntries();
+  closeModal();
 }
 
 function goToPage(page) {
@@ -280,6 +303,7 @@ function handleTableAction({ action, row }) {
     openDeleteModal(row);
   }
 }
+
 </script>
 
 <template>
@@ -432,6 +456,19 @@ function handleTableAction({ action, row }) {
             </button>
           </div>
         </form>
+      </div>
+    </div>
+    <div v-if="confirmModalOpen" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4">
+      <div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+        <p class="mb-5 text-sm text-gray-700">{{ confirmMessage }}</p>
+        <div class="flex justify-end gap-2">
+          <button class="rounded-md bg-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-300" @click="handleConfirmNo">
+            Cancel
+          </button>
+          <button class="rounded-md bg-[#263e30] px-4 py-2 text-sm font-medium text-white transition hover:opacity-80" @click="handleConfirmYes">
+            Confirm
+          </button>
+        </div>
       </div>
     </div>
   </div>
