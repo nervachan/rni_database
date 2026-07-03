@@ -7,6 +7,7 @@ import { downloadExport } from '../../utils/exportUtils.js'
 defineEmits(['view'])
 
 const rows = ref([])
+const loadError = ref('')
 
 // --- Toolbar state ---
 const search       = ref('')
@@ -273,7 +274,13 @@ async function handleImportFile(event) {
 }
 
 async function loadRecords() {
-  rows.value = await getIpRecords()
+  loadError.value = ''
+  try {
+    rows.value = await getIpRecords()
+  
+  } catch (err) {
+    loadError.value = 'Failed to load IP records. ' + err.message
+  }
 }
 
 onMounted(loadRecords)
@@ -334,6 +341,10 @@ function statusClass(status) {
 
 <template>
   <div class="min-h-screen bg-gray-100 font-sans">
+
+    <div v-if="loadError" class="mx-4 sm:mx-6 mt-4 sm:mt-6 bg-red-50 border border-red-200 text-red-700 text-xs sm:text-sm px-4 py-3 rounded-xl">
+      {{ loadError }}
+    </div>
 
     <!-- Header -->
     <div class="mx-4 sm:mx-6 mt-4 sm:mt-6 flex items-center gap-3 bg-white px-4 sm:px-6 py-6 rounded-2xl shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]">
