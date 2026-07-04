@@ -42,7 +42,8 @@ function openForm(row = null) {
     form.inventors      = row.inventors.join(', ')
     form.filingDate     = row.filingDate
     form.classification = row.classification
-    form.status         = row.status[0] ?? ''
+    // form.status         = row.status[0] ?? ''
+    form.status         = row.status ?? '' 
   } else {
     editingId.value = null
     Object.assign(form, blankForm())
@@ -78,7 +79,8 @@ async function submitForm() {
     inventors:      form.inventors.split(',').map(s => s.trim()).filter(Boolean),
     filingDate:     form.filingDate,
     classification: form.classification,
-    status:         [form.status],
+    // status:         [form.status],
+    status:         form.status,
   }
 
   if (editingId.value) {
@@ -136,6 +138,26 @@ function clearSelection() {
   selectedIds.value = []
 }
 
+// function bulkUpdateStatus() {
+//   if (!selectedIds.value.length) return
+
+//   const previousStatus = {}
+//   selectedIds.value.forEach(id => {
+//     const idx = rows.value.findIndex(r => r.id === id)
+//     if (idx !== -1) {
+//       previousStatus[id] = [...rows.value[idx].status]
+//       rows.value[idx] = { ...rows.value[idx], status: [bulkStatus.value] }
+//       updateIpRecord(id, { status: [bulkStatus.value] })
+//     }
+//   })
+
+//   lastBulkStatusChange.value = {
+//     ids: [...selectedIds.value],
+//     previousStatus,
+//     appliedStatus: bulkStatus.value,
+//   }
+// }
+
 function bulkUpdateStatus() {
   if (!selectedIds.value.length) return
 
@@ -143,9 +165,9 @@ function bulkUpdateStatus() {
   selectedIds.value.forEach(id => {
     const idx = rows.value.findIndex(r => r.id === id)
     if (idx !== -1) {
-      previousStatus[id] = [...rows.value[idx].status]
-      rows.value[idx] = { ...rows.value[idx], status: [bulkStatus.value] }
-      updateIpRecord(id, { status: [bulkStatus.value] })
+      previousStatus[id] = rows.value[idx].status
+      rows.value[idx] = { ...rows.value[idx], status: bulkStatus.value }
+      updateIpRecord(id, { status: bulkStatus.value })
     }
   })
 
@@ -206,7 +228,11 @@ function exportRows() {
     title: r.title,
     inventors: r.inventors.join(', '),
     filingDate: r.filingDate,
-    status: r.status.join(', '),
+    // status: r.status.join(', '),
+
+    status: r.status,
+
+
     classification: r.classification,
   }))
   downloadExport('ip_records', headers, payload, exportFormat.value)
@@ -262,7 +288,9 @@ async function handleImportFile(event) {
         inventors: csvRow.inventors.split(',').map(s => s.trim()).filter(Boolean),
         filingDate: csvRow.filingdate.trim(),
         classification: csvRow.classification.trim(),
-        status: [csvRow.status.trim()],
+        // status: [csvRow.status.trim()],
+
+        status: csvRow.status.trim(),
       }
       const created = await createIpRecord(record)
       rows.value.push(created)
@@ -294,11 +322,16 @@ const displayedRows = computed(() => {
     r.title.toLowerCase().includes(q) ||
     r.inventors.join(' ').toLowerCase().includes(q) ||
     r.classification.toLowerCase().includes(q) ||
-    r.status.join(' ').toLowerCase().includes(q)
+    // 
+    
+    r.status.toLowerCase().includes(q)
   )
 
+  // if (filterStatus.value)
+  //   result = result.filter(r => r.status.includes(filterStatus.value))
+
   if (filterStatus.value)
-    result = result.filter(r => r.status.includes(filterStatus.value))
+    result = result.filter(r => r.status === filterStatus.value)
 
   if (filterClass.value)
     result = result.filter(r => r.classification === filterClass.value)
@@ -328,14 +361,24 @@ watch(displayedRows, () => {
   }
 })
 
+// function statusClass(status) {
+//   const s = status.join(' ')
+//   if (s.includes('Granted'))   return 'bg-[#2ecc71]/10 text-[#2ecc71] group-hover:bg-[#2ecc71] group-hover:text-[#eff2f0]'
+//   if (s.includes('Pending'))   return 'bg-[#e6a817]/10 text-[#e6a817] group-hover:bg-[#e6a817] group-hover:text-[#eff2f0]'
+//   if (s.includes('Licensed'))  return 'bg-[#3b9edd]/10 text-[#3b9edd] group-hover:bg-[#3b9edd] group-hover:text-[#eff2f0]'
+//   if (s.includes('Abandoned')) return 'bg-[#e05c5c]/10 text-[#e05c5c] group-hover:bg-[#e05c5c] group-hover:text-[#eff2f0]'
+//   return 'bg-white/10 text-white/60 group-hover:bg-white/80 group-hover:text-[#eff2f0]'
+// }
+
 function statusClass(status) {
-  const s = status.join(' ')
-  if (s.includes('Granted'))   return 'bg-[#2ecc71]/10 text-[#2ecc71] group-hover:bg-[#2ecc71] group-hover:text-[#eff2f0]'
-  if (s.includes('Pending'))   return 'bg-[#e6a817]/10 text-[#e6a817] group-hover:bg-[#e6a817] group-hover:text-[#eff2f0]'
-  if (s.includes('Licensed'))  return 'bg-[#3b9edd]/10 text-[#3b9edd] group-hover:bg-[#3b9edd] group-hover:text-[#eff2f0]'
-  if (s.includes('Abandoned')) return 'bg-[#e05c5c]/10 text-[#e05c5c] group-hover:bg-[#e05c5c] group-hover:text-[#eff2f0]'
+  if (status === 'Granted')   return 'bg-[#2ecc71]/10 text-[#2ecc71] group-hover:bg-[#2ecc71] group-hover:text-[#eff2f0]'
+  if (status === 'Pending')   return 'bg-[#e6a817]/10 text-[#e6a817] group-hover:bg-[#e6a817] group-hover:text-[#eff2f0]'
+  if (status === 'Licensed')  return 'bg-[#3b9edd]/10 text-[#3b9edd] group-hover:bg-[#3b9edd] group-hover:text-[#eff2f0]'
+  if (status === 'Abandoned') return 'bg-[#e05c5c]/10 text-[#e05c5c] group-hover:bg-[#e05c5c] group-hover:text-[#eff2f0]'
   return 'bg-white/10 text-white/60 group-hover:bg-white/80 group-hover:text-[#eff2f0]'
 }
+
+
 </script>
 
 
@@ -559,8 +602,8 @@ function statusClass(status) {
                   <span
                     class="block truncate text-xs font-medium px-2 py-0.5 rounded-full w-fit transition-colors"
                     :class="statusClass(row.status)"
-                    :title="row.status.join(', ')"
-                  >{{ row.status.join(', ') }}</span>
+                    :title="row.status"
+                  >{{ row.status }}</span>
                 </td>
                 <td class="py-3 px-3 text-black/70 group-hover:text-black">{{ row.classification }}</td>
                 <td class="py-3 px-3">

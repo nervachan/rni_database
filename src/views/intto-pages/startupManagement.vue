@@ -17,7 +17,10 @@ const projectFormError    = ref('')
 const projectLogoError    = ref('')
 const itemsPerPage        = ref(10)
 const currentPage         = ref(1)
-const newProject          = ref({ name: '', genre: '', supporting: '', description: '', logo: '' })
+
+const newProject          = ref({ name: '', genre: '', shortDescription: '', logo: '' })
+
+
 const editSelectedName    = ref('')
 const addSelectedName     = ref('')
 
@@ -127,8 +130,9 @@ async function addCohort() {
   }
 }
 
+
 function openAddProjectModal() {
-  newProject.value = { name: '', genre: '', supporting: '', description: '', logo: '' }
+  newProject.value = { name: '', genre: '', shortDescription: '', logo: '' }
   projectFormError.value = ''
   projectLogoError.value = ''
   showAddProjectModal.value = true
@@ -197,13 +201,14 @@ async function addProject() {
 
   try {
     const created = await createStartup({
-      cohortId:    activeCohortId.value,
+      cohortId: activeCohortId.value,
       name,
-      genre:       newProject.value.genre.trim(),
-      supporting:  newProject.value.supporting.trim(),
-      description: newProject.value.description.trim(),
-      logo:        newProject.value.logo || '',
+      genre: newProject.value.genre.trim(),
+      shortDescription: newProject.value.shortDescription.trim(),
+      logo: newProject.value.logo || '',
     })
+
+    
     localStartups.value.push(created)
 
     const cohort = localCohorts.value.find(c => c.id === activeCohortId.value)
@@ -215,7 +220,8 @@ async function addProject() {
   }
 }
 
-const editForm = ref({ id: null, name: '', genre: '', supporting: '', description: '', logo: '' })
+
+const editForm = ref({ id: null, name: '', genre: '', shortDescription: '', logo: '' })
 
 function openEditModal() {
   if (!activeProject.value) return
@@ -285,7 +291,7 @@ async function saveProject() {
               :key="cohort.id"
               @click="selectCohort(cohort.id)"
               :class="[
-                'flex cursor-pointer items-center gap-3 rounded-[2rem] px-4 py-3 transition',
+                'flex cursor-pointer items-center gap-3 rounded-4xl px-4 py-3 transition',
                 cohort.id === activeCohortId
                   ? 'bg-[#4d7c5e] border-l-4 border-[#9abba4] text-white shadow-inner'
                   : 'bg-gray-100 text-black hover:bg-[#c3d7c8]'
@@ -313,11 +319,11 @@ async function saveProject() {
             <input
               v-model="projectSearch"
               placeholder="Search project..."
-              class="w-full rounded-[2rem] border border-gray-200 bg-gray-100 px-4 py-3 text-sm text-black outline-none focus:border-[#263e30]"
+              class="w-full rounded-4xl border border-gray-200 bg-gray-100 px-4 py-3 text-sm text-black outline-none focus:border-[#263e30]"
             />
             <select
               v-model="genreSearch"
-              class="w-full rounded-[2rem] border border-gray-200 bg-gray-100 px-4 py-3 text-sm outline-none focus:border-[#263e30] text-black"
+              class="w-full rounded-4xl border border-gray-200 bg-gray-100 px-4 py-3 text-sm outline-none focus:border-[#263e30] text-black"
             >
               <option v-for="g in allGenres" :key="g" :value="g">{{ g }}</option>
               <option value="" disabled selected hidden> Genre...</option>
@@ -326,7 +332,7 @@ async function saveProject() {
               <label class="min-w-max text-xs text-neutral-600">Display</label>
               <select
                 v-model="itemsPerPage"
-                class="w-full rounded-[2rem] border border-gray-200 bg-gray-100 px-4 py-3 text-sm outline-none focus:border-[#263e30] text-black"
+                class="w-full rounded-4xl border border-gray-200 bg-gray-100 px-4 py-3 text-sm outline-none focus:border-[#263e30] text-black"
               >
                 <option :value="5">5</option>
                 <option :value="10">10</option>
@@ -342,19 +348,23 @@ async function saveProject() {
               :key="startup.id"
               @click="selectProject(startup.id)"
               :class="[
-                'flex cursor-pointer items-center gap-3 rounded-[2rem] px-4 py-3 transition',
+                'flex cursor-pointer items-center gap-3 rounded-4xl px-4 py-3 transition',
                 startup.id === activeProjectId
                   ? 'bg-[#4d7c5e] border-l-4 border-[#9abba4] text-white shadow-inner'
                   : 'bg-gray-100 text-black hover:bg-[#c3d7c8]'
               ]"
             >
-              <div class="h-12 w-12 flex-shrink-0 overflow-hidden rounded-2xl bg-slate-200">
+              <div class="h-12 w-12 shrink-0 overflow-hidden rounded-2xl bg-slate-200">
                 <img v-if="startup.logo" :src="startup.logo" alt="Logo" class="h-full w-full object-cover" />
                 <div v-else class="flex h-full items-center justify-center text-xs text-slate-500">Logo</div>
               </div>
               <div class="min-w-0 flex-1">
                 <p class="truncate text-sm font-semibold">{{ startup.name }}</p>
-                <p class="truncate text-xs text-slate-400">{{ startup.supporting }}</p>
+                <!-- ''<p class="truncate text-xs text-slate-400">{{ startup.supporting }}</p>'' -->
+                <!----------template, the project list card:------------>
+
+
+                <p class="truncate text-xs text-slate-400">{{ startup.shortDescription }}</p>
               </div>
               <span class="text-slate-500">›</span>
             </li>
@@ -374,7 +384,7 @@ async function saveProject() {
               <button
                 v-for="page in totalPages"
                 :key="page"
-                class="h-9 min-w-[2.25rem] rounded-full text-sm transition"
+                class="h-9 min-w-9 rounded-full text-sm transition"
                 :class="currentPage === page ? 'bg-[#263e30] text-white' : 'border border-gray-300 text-gray-700 hover:bg-gray-100'"
                 @click="currentPage = page"
               >
@@ -391,9 +401,9 @@ async function saveProject() {
 
         <!-- Column 3: Detail -->
         <section class="rounded-xl bg-white shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] md:h-[70vh] overflow-hidden">
-          <div class="col3 h-full overflow-y-auto pr-2 rounded-[2rem]">
+          <div class="col3 h-full overflow-y-auto pr-2 rounded-4xl">
           <template v-if="activeProject">
-            <div class="flex items-center justify-between gap-4 p-5 md:sticky md:top-0 bg-white rounded-t-[2rem] z-10">
+            <div class="flex items-center justify-between gap-4 p-5 md:sticky md:top-0 bg-white rounded-t-4xl z-10">
               <div class="flex items-center gap-4">
                 <div class="h-20 w-20 overflow-hidden rounded-3xl bg-slate-200">
                   <img v-if="activeProject.logo" :src="activeProject.logo" alt="Project logo" class="h-full w-full object-cover" />
@@ -409,34 +419,43 @@ async function saveProject() {
                 class="rounded-2xl bg-[#263e30] px-4 py-2 text-sm font-semibold text-white hover:bg-[#4d7c5e] transition"
               >Edit</button>
             </div>
-            <div class="rounded-[2rem] bg-gray-100 p-4 mx-5 text-sm leading-7 text-black">
-              <p>{{ activeProject.description }}</p>
+            <div class="rounded-4xl bg-gray-100 p-4 mx-5 text-sm leading-7 text-black">
+              <!-- ''<p>{{ activeProject.description }}</p>'' -->
+              <!--template, the project detail panel:-->
+              
+              <p>{{ activeProject.shortDescription }}</p>
             </div>
-            <div class="md:sticky md:bottom-0 bg-white rounded-b-[2rem] px-5 py-3 flex items-center justify-between">
+            <div class="md:sticky md:bottom-0 bg-white rounded-b-4xl px-5 py-3 flex items-center justify-between">
               <p class="text-xs text-white">{{ activeProject.genre }} · {{ cohortName(activeProject.cohortId) }}</p>
               <p class="text-xs text-white">{{ activeProject.name }}</p>
             </div>
           </template>
           <template v-else>
             <div class="grid gap-4 grid-cols-1 sm:grid-cols-3 p-5">
-              <div class="rounded-[2rem] bg-gray-100 p-4 text-black ">
+              <div class="rounded-4xl bg-gray-100 p-4 text-black ">
                 <p class="text-xs uppercase tracking-widest text-slate-600">Total Startups</p>
                 <p class="mt-4 text-3xl font-semibold">{{ localStartups.length }}</p>
               </div>
-              <div class="rounded-[2rem] bg-gray-100 p-4 text-black">
+              <div class="rounded-4xl bg-gray-100 p-4 text-black">
                 <p class="text-xs uppercase tracking-widest text-slate-400">Cohorts</p>
                 <p class="mt-4 text-3xl font-semibold">{{ localCohorts.length }}</p>
               </div>
-              <div class="rounded-[2rem] bg-gray-100 p-4 text-black">
+              <div class="rounded-4xl bg-gray-100 p-4 text-black">
                 <p class="text-xs uppercase tracking-widest text-slate-400">In Selected Cohort</p>
                 <p class="mt-4 text-3xl font-semibold">{{ activeCohortCount }}</p>
               </div>
             </div>
-            <div class="mt-4 mx-5 mb-5 rounded-[2rem] bg-gray-100 p-5">
+            <div class="mt-4 mx-5 mb-5 rounded-4xl bg-gray-100 p-5">
               <h3 class="text-base font-semibold text-black mb-4">Recent Startups</h3>
               <ul class="space-y-3 text-sm text-slate-700">
                 <li v-for="s in recentStartups" :key="s.id" class="border-b border-slate-200 pb-3 last:border-b-0 last:pb-0">
-                  <span class="font-semibold text-black">{{ s.name }}</span> — {{ s.supporting }}
+                  <!-- ''<span class="font-semibold text-black">{{ s.name }}</span> — {{ s.supporting }}'' -->
+                  <!--------- template, the dashboard's "Recent Startups" list:--------->
+
+
+                  <span class="font-semibold text-black">{{ s.name }}</span> — {{ s.shortDescription }}
+
+
                 </li>
               </ul>
             </div>
@@ -450,7 +469,7 @@ async function saveProject() {
 
   <!-- Cohort Modal -->
   <div v-if="showCohortModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-    <div class="bg-white rounded-[2rem] p-6 w-full max-w-sm shadow-xl space-y-4">
+    <div class="bg-white rounded-4xl p-6 w-full max-w-sm shadow-xl space-y-4">
       <div class="flex items-center justify-between">
         <h3 class="text-base font-semibold text-black">Manage Cohorts</h3>
         <button @click="showCohortModal = false" class="text-slate-400 hover:text-black text-xl leading-none">✕</button>
@@ -494,7 +513,7 @@ async function saveProject() {
 
   <!-- Add Project Modal -->
   <div v-if="showAddProjectModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-    <div class="bg-white rounded-[2rem] p-6 w-full max-w-md shadow-xl space-y-4">
+    <div class="bg-white rounded-4xl p-6 w-full max-w-md shadow-xl space-y-4">
       <div class="flex items-center justify-between">
         <h3 class="text-base font-semibold text-black">Add Project to {{ cohortName(activeCohortId) }}</h3>
         <button @click="showAddProjectModal = false" class="text-slate-400 hover:text-black text-xl leading-none">✕</button>
@@ -516,7 +535,7 @@ async function saveProject() {
             <option v-for="genre in genreOptions" :key="genre" :value="genre" />
           </datalist>
         </div>
-          <input
+          <!-- ''<input
             v-model="newProject.supporting"
             placeholder="Short description"
             class="w-full rounded-2xl border border-gray-200 bg-gray-100 px-4 py-3 text-sm text-black outline-none focus:border-[#263e30]"
@@ -526,7 +545,19 @@ async function saveProject() {
           placeholder="Full description"
           rows="4"
           class="w-full rounded-2xl border border-gray-200 bg-gray-100 px-4 py-3 text-sm text-black outline-none focus:border-[#263e30] resize-none"
+        />'' -->
+        <!---------template, the Add Project modal — two inputs become one:---------->
+
+
+        <textarea
+          v-model="newProject.shortDescription"
+          placeholder="Description"
+          rows="4"
+          class="w-full rounded-2xl border border-gray-200 bg-gray-100 px-4 py-3 text-sm text-black outline-none focus:border-[#263e30] resize-none"
         />
+
+
+
         <div>
           <label class="mb-2 block text-sm font-medium text-slate-700">Logo (optional)</label>
           <div class="mb-2 h-24 w-full overflow-hidden rounded-3xl border border-gray-200 bg-gray-300">
@@ -553,7 +584,7 @@ async function saveProject() {
 
   <!-- Edit Project Modal -->
   <div v-if="showProjectModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-    <div class="bg-white rounded-[2rem] p-6 w-full max-w-md shadow-xl space-y-4">
+    <div class="bg-white rounded-4xl p-6 w-full max-w-md shadow-xl space-y-4">
       <div class="flex items-center justify-between">
         <h3 class="text-base font-semibold text-black">Edit Project</h3>
         <button @click="showProjectModal = false" class="text-slate-400 hover:text-black text-xl leading-none">✕</button>
@@ -575,7 +606,7 @@ async function saveProject() {
             <option v-for="genre in genreOptions" :key="genre" :value="genre" />
           </datalist>
         </div>
-        <input
+        <!-- ''<input
           v-model="editForm.supporting"
           placeholder="Supporting description"
           class="w-full rounded-2xl border border-gray-200 bg-gray-100 px-4 py-3 text-sm text-black outline-none focus:border-[#263e30]"
@@ -585,7 +616,17 @@ async function saveProject() {
           placeholder="Full description"
           rows="4"
           class="w-full rounded-2xl border border-gray-200 bg-gray-100 px-4 py-3 text-sm text-black outline-none focus:border-[#263e30] resize-none"
+        />'' -->
+        <!---------template, the Edit Project modal — same consolidation:--------->
+
+        <textarea
+          v-model="editForm.shortDescription"
+          placeholder="Description"
+          rows="4"
+          class="w-full rounded-2xl border border-gray-200 bg-gray-100 px-4 py-3 text-sm text-black outline-none focus:border-[#263e30] resize-none"
         />
+
+
         <div>
           <label class="mb-2 block text-sm font-medium text-slate-700">Logo (optional)</label>
           <div class="mb-2 h-24 w-full overflow-hidden rounded-3xl border border-gray-200 bg-slate-100">

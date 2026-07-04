@@ -64,15 +64,31 @@ const ipByClassification = computed(() => [
   { label: 'Utility model',     value: ipRecords.value.filter(r => r.classification === 'Utility model').length },
 ])
 
+// const ipByStatus = computed(() => [
+//   { label: 'Pending',   value: ipRecords.value.filter(r => r.status.includes('Pending')).length,   color: '#e6a817' },
+//   { label: 'Granted',   value: ipRecords.value.filter(r => r.status.includes('Granted')).length,   color: '#2ecc71' },
+// ])
+
+
+//=======computed=========//
 const ipByStatus = computed(() => [
-  { label: 'Pending',   value: ipRecords.value.filter(r => r.status.includes('Pending')).length,   color: '#e6a817' },
-  { label: 'Granted',   value: ipRecords.value.filter(r => r.status.includes('Granted')).length,   color: '#2ecc71' },
+  { label: 'Pending',   value: ipRecords.value.filter(r => r.status === 'Pending').length,   color: '#e6a817' },
+  { label: 'Granted',   value: ipRecords.value.filter(r => r.status === 'Granted').length,   color: '#2ecc71' },
 ])
 
+// const ipStats = computed(() => [
+//   { eyebrow: 'Total IP filings', value: ipRecords.value.length,                                                sub: 'All classifications' },
+//   { eyebrow: 'Pending',          value: ipRecords.value.filter(r => r.status.includes('Pending')).length,      sub: 'Awaiting decision', subClass: 'warn' },
+//   { eyebrow: 'Granted',          value: ipRecords.value.filter(r => r.status.includes('Granted')).length,      sub: 'Approved',          subClass: 'ok'   },
+// ])
+
+
+
+//=======computed, same two calls repeated:===========//
 const ipStats = computed(() => [
-  { eyebrow: 'Total IP filings', value: ipRecords.value.length,                                                sub: 'All classifications' },
-  { eyebrow: 'Pending',          value: ipRecords.value.filter(r => r.status.includes('Pending')).length,      sub: 'Awaiting decision', subClass: 'warn' },
-  { eyebrow: 'Granted',          value: ipRecords.value.filter(r => r.status.includes('Granted')).length,      sub: 'Approved',          subClass: 'ok'   },
+  { eyebrow: 'Total IP filings', value: ipRecords.value.length,                                           sub: 'All classifications' },
+  { eyebrow: 'Pending',          value: ipRecords.value.filter(r => r.status === 'Pending').length,       sub: 'Awaiting decision', subClass: 'warn' },
+  { eyebrow: 'Granted',          value: ipRecords.value.filter(r => r.status === 'Granted').length,       sub: 'Approved',          subClass: 'ok'   },
 ])
 
 const maxClass  = computed(() => ipByClassification.value.length ? Math.max(...ipByClassification.value.map(i => i.value)) : 0)

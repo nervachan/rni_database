@@ -1,9 +1,11 @@
 const supabase = require('./supabaseClient')
 const express = require('express');
+const cors = require('cors');
 const app = express();
 const PORT = 3000;
 
 app.use(express.json());
+app.use(cors());
 
 app.get('/test', (req, res) => {
   res.json({ message: 'Backend is working' });
@@ -33,6 +35,149 @@ app.get('/research-entries', async (req, res) => {
   }
 
   res.json({ 'research-entries': data });
+});
+
+app.get('/classifications', async (req, res) => {
+  const { data, error } = await supabase
+    .from('classifications')
+    .select('*');
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ classifications: data });
+});
+
+app.get('/cohorts', async (req, res) => {
+  const { data, error } = await supabase
+    .from('cohorts')
+    .select('*');
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ cohorts: data });
+});
+
+app.post('/cohorts', async (req, res) => {
+  const { data, error } = await supabase
+    .from('cohorts')
+    .insert(req.body)
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ cohort: data });
+});
+
+app.get('/startups', async (req, res) => {
+  const { data, error } = await supabase
+    .from('startups')
+    .select('*');
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ startups: data });
+});
+
+app.post('/startups', async (req, res) => {
+  const { data, error } = await supabase
+    .from('startups')
+    .insert(req.body)
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ startup: data });
+});
+
+app.patch('/startups/:id', async (req, res) => {
+  const { data, error } = await supabase
+    .from('startups')
+    .update(req.body)
+    .eq('id', req.params.id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ startup: data });
+});
+
+app.get('/ips', async (req, res) => {
+  const { data, error } = await supabase
+    .from('ips')
+    .select('*');
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ ips: data });
+});
+
+app.post('/ips', async (req, res) => {
+  const { data, error } = await supabase
+    .from('ips')
+    .insert(req.body)
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ ip: data });
+});
+
+app.patch('/ips/:id', async (req, res) => {
+  const { data, error } = await supabase
+    .from('ips')
+    .update(req.body)
+    .eq('id', req.params.id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ ip: data });
+});
+
+app.delete('/ips/:id', async (req, res) => {
+  const { error } = await supabase
+    .from('ips')
+    .delete()
+    .eq('id', req.params.id);
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ success: true });
 });
 
 // Applications
