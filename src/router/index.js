@@ -16,11 +16,11 @@ import startupMgmt from '../views/intto-pages/startupManagement.vue'
 import IPMgmt from '../views/intto-pages/ipManagement.vue'
 
 const routes = [
-    { path: '/', redirect: '/app/super-admin/dashboard'},
+    { path: '/', redirect: '/super-admin/dashboard'},
     { path: '/login', name: 'Login', component: LoginView},
     { path: '/register', name: 'Register', component: RegisterView },
 
-    { path: '/app',
+    { path: '/',
         component: AppLayout, 
         children: [
             {

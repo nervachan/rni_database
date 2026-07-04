@@ -15,19 +15,19 @@ const props = defineProps({
 
 const navItems = {
     'RSO Admin': [
-        {label: 'Dashboard', route: '/app/rso-admin/dashboard', icon:HomeIcon},
-        {label: 'Research Entry Management', route: '/app/rso-admin/research-entry-management', icon:BookOpenIcon},
+        {label: 'Dashboard', route: '/rso-admin/dashboard', icon:HomeIcon},
+        {label: 'Research Entry Management', route: '/rso-admin/research-entry-management', icon:BookOpenIcon},
     ],
     'INTTO Admin': [
-        {label: 'Dashboard', route: '/app/intto-admin/dashboard', icon:HomeIcon},
-        {label: 'IP Management', route: '/app/intto-admin/ip-management', icon:ShieldCheckIcon},
-        {label: 'Startup Management', route: '/app/intto-admin/startup-management', icon:LightBulbIcon},
+        {label: 'Dashboard', route: '/intto-admin/dashboard', icon:HomeIcon},
+        {label: 'IP Management', route: '/intto-admin/ip-management', icon:ShieldCheckIcon},
+        {label: 'Startup Management', route: '/intto-admin/startup-management', icon:LightBulbIcon},
     ],
     'Super Admin': [
-        {label: 'Dashboard', route: '/app/super-admin/dashboard', icon:HomeIcon},
-        {label: 'User Management', route: '/app/super-admin/user-management', icon:UserIcon},
-        {label: 'Logs', route: '/app/super-admin/logs', icon:CircleStackIcon},
-        {label: 'Applications and Notifications', route: '/app/super-admin/applications-and-notifications', icon:BellIcon},
+        {label: 'Dashboard', route: '/super-admin/dashboard', icon:HomeIcon},
+        {label: 'User Management', route: '/super-admin/user-management', icon:UserIcon},
+        {label: 'Logs', route: '/super-admin/logs', icon:CircleStackIcon},
+        {label: 'Applications and Notifications', route: '/super-admin/applications-and-notifications', icon:BellIcon},
     ]
 }
 
