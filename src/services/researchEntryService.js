@@ -1,4 +1,4 @@
-const initialEntries = [
+const initialEntries = [ // Mock data, to be cleaned later
   {
     id: 1,
     title: 'AI-Powered Crop Disease Detection',
@@ -111,6 +111,7 @@ const initialEntries = [
   },
 ];
 
+//Research entries get, CRUD functions
 let researchEntries = initialEntries.map((entry) => ({ ...entry }));
 
 export function getResearchEntries() {

@@ -1,4 +1,4 @@
-const initialNotifications = [
+const initialNotifications = [ // mock data, to be cleaned later
   {
     id: 1,
     text: 'New application received from Ana Dela Cruz.',
@@ -21,6 +21,7 @@ const initialNotifications = [
   },
 ];
 
+// notifications function
 export function getNotifications() {
   return initialNotifications.map((notification) => ({ ...notification }));
 }

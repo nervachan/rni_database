@@ -1,16 +1,30 @@
-const supabase = require('./supabaseClient')
 const express = require('express');
+<<<<<<< HEAD
 const cors = require('cors');
+=======
+const { auth } = require('./firebase');
+const { supabase } = require('./supabaseClient');
+
+>>>>>>> 00b2bcf2fe2463e5fc130af5ed16a35ed3b40c9f
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 app.use(cors());
 
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  next();
+});
+
+// Test endpoint
 app.get('/test', (req, res) => {
   res.json({ message: 'Backend is working' });
 });
 
+// Get all users
 app.get('/users', async (req, res) => {
   const { data, error } = await supabase
     .from('users')
@@ -24,6 +38,7 @@ app.get('/users', async (req, res) => {
   res.json({ users: data });
 });
 
+// Get all research entries
 app.get('/research-entries', async (req, res) => {
   const { data, error } = await supabase
     .from('research-entries')
@@ -37,6 +52,7 @@ app.get('/research-entries', async (req, res) => {
   res.json({ 'research-entries': data });
 });
 
+<<<<<<< HEAD
 app.get('/classifications', async (req, res) => {
   const { data, error } = await supabase
     .from('classifications')
@@ -200,46 +216,171 @@ let applications = [
   { id: 2, name: 'Lorenzo Rivera', role: 'RSO', email: 'lorenzo.rivera@example.com', dateApplied: '2026-06-29', status: 'pending' },
   { id: 3, name: 'Bea Mendoza', role: 'INTTO', email: 'bea.mendoza@example.com', dateApplied: '2026-06-28', status: 'pending' },
 ];
+=======
+app.post('/applications', async (req, res) => {
+  try {
+    const { email, password, firstName, lastName, role } = req.body;
+>>>>>>> 00b2bcf2fe2463e5fc130af5ed16a35ed3b40c9f
 
+    if (!email || !password || !firstName || !lastName || !role) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const userRecord = await auth.createUser({
+      email,
+      password,
+      displayName: `${firstName} ${lastName}`
+    });
+
+    const { data, error } = await supabase
+      .from('applications')
+      .insert({
+        firebase_uid: userRecord.uid,
+        first_name: firstName,
+        last_name: lastName,
+        email,
+        role,
+        status: 'pending'
+      })
+      .select();
+
+      // Copy to users table
+    const { error: insertError } = await supabase
+      .from('users')
+      .insert({
+      firebase_uid: app.firebase_uid,
+      name: `${app.first_name} ${app.last_name}`,
+      email: app.email,
+      role: app.role
+    });
+
+    res.status(201).json({
+      message: 'Application submitted',
+      applicationId: data[0].id,
+      firebaseUid: userRecord.uid
+    });
+  } catch (error) {
+    console.error('Request error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PATCH /applications/:id/approve - Approve application
+app.patch('/applications/:id/approve', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get the application
+    const { data: app, error: fetchError } = await supabase
+      .from('applications')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !app) {
+      return res.status(404).json({ error: 'Application not found' });
+    }
+
+    // Update status to approved
+    const { error: updateError } = await supabase
+      .from('applications')
+      .update({ status: 'approved' })
+      .eq('id', id);
+
+    if (updateError) {
+      return res.status(500).json({ error: updateError.message });
+    }
+
+    // Copy to users table
+    const { error: insertError } = await supabase
+      .from('users')
+      .insert({
+        firebase_uid: app.firebase_uid,
+        name: `${app.first_name} ${app.last_name}`,
+        email: app.email,
+        role: app.role
+      });
+
+    if (insertError) {
+      return res.status(500).json({ error: insertError.message });
+    }
+
+    res.json({ message: 'Application approved' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PATCH /applications/:id/reject - Reject application
+app.patch('/applications/:id/reject', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get the application
+    const { data: app, error: fetchError } = await supabase
+      .from('applications')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !app) {
+      return res.status(404).json({ error: 'Application not found' });
+    }
+
+    // Update status to rejected
+    const { error: updateError } = await supabase
+      .from('applications')
+      .update({ status: 'rejected' })
+      .eq('id', id);
+
+    if (updateError) {
+      return res.status(500).json({ error: updateError.message });
+    }
+
+    // Delete Firebase account
+    try {
+      await auth.deleteUser(app.firebase_uid);
+    } catch (deleteError) {
+      console.error('Failed to delete Firebase user:', deleteError);
+    }
+
+    res.json({ message: 'Application rejected' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /applications - Get pending applications (mock data for now)
 app.get('/applications', (req, res) => {
+  const applications = [
+    { id: 1, name: 'Ana Dela Cruz', role: 'INTTO', email: 'ana.delacruz@example.com', dateApplied: '2026-06-30', status: 'pending' },
+    { id: 2, name: 'Lorenzo Rivera', role: 'RSO', email: 'lorenzo.rivera@example.com', dateApplied: '2026-06-29', status: 'pending' },
+    { id: 3, name: 'Bea Mendoza', role: 'INTTO', email: 'bea.mendoza@example.com', dateApplied: '2026-06-28', status: 'pending' },
+  ];
   res.json(applications.filter(a => a.status === 'pending'));
 });
 
-app.patch('/applications/:id/approve', (req, res) => {
-  const id = Number(req.params.id);
-  applications = applications.map(a => a.id === id ? { ...a, status: 'approved' } : a);
-  res.json({ success: true });
-});
-
-app.patch('/applications/:id/reject', (req, res) => {
-  const id = Number(req.params.id);
-  applications = applications.map(a => a.id === id ? { ...a, status: 'rejected' } : a);
-  res.json({ success: true });
-});
-
 // Logs
-const logs = [
-  { id: 1, timestamp: '2026-06-30T14:30:00', action: 'User Login', name: 'Maria Santos', email: 'maria.santos@example.com', role: 'INTTO', severity: 'normal' },
-  { id: 2, timestamp: '2026-06-29T10:15:00', action: 'Profile Updated', name: 'Rafael Lim', email: 'rafael.lim@example.com', role: 'RSO', severity: 'warning' },
-  { id: 3, timestamp: '2026-06-28T09:05:00', action: 'Password Reset', name: 'Jasmine Torres', email: 'jasmine.torres@example.com', role: 'INTTO', severity: 'warning' },
-  { id: 4, timestamp: '2026-06-27T18:40:00', action: 'Role Changed', name: 'Paul Reyes', email: 'paul.reyes@example.com', role: 'RSO', severity: 'warning' },
-  { id: 5, timestamp: '2026-06-26T13:20:00', action: 'Account Activated', name: 'Cris Villanueva', email: 'cris.villanueva@example.com', role: 'INTTO', severity: 'normal' },
-  { id: 6, timestamp: '2026-06-25T07:55:00', action: 'Access Denied', name: 'Mina Cruz', email: 'mina.cruz@example.com', role: 'RSO', severity: 'critical' },
-];
-
 app.get('/logs', (req, res) => {
+  const logs = [
+    { id: 1, timestamp: '2026-06-30T14:30:00', action: 'User Login', name: 'Maria Santos', email: 'maria.santos@example.com', role: 'INTTO', severity: 'normal' },
+    { id: 2, timestamp: '2026-06-29T10:15:00', action: 'Profile Updated', name: 'Rafael Lim', email: 'rafael.lim@example.com', role: 'RSO', severity: 'warning' },
+    { id: 3, timestamp: '2026-06-28T09:05:00', action: 'Password Reset', name: 'Jasmine Torres', email: 'jasmine.torres@example.com', role: 'INTTO', severity: 'warning' },
+    { id: 4, timestamp: '2026-06-27T18:40:00', action: 'Role Changed', name: 'Paul Reyes', email: 'paul.reyes@example.com', role: 'RSO', severity: 'warning' },
+    { id: 5, timestamp: '2026-06-26T13:20:00', action: 'Account Activated', name: 'Cris Villanueva', email: 'cris.villanueva@example.com', role: 'INTTO', severity: 'normal' },
+    { id: 6, timestamp: '2026-06-25T07:55:00', action: 'Access Denied', name: 'Mina Cruz', email: 'mina.cruz@example.com', role: 'RSO', severity: 'critical' },
+  ];
   res.json(logs);
 });
 
 // Notifications
-const notifications = [
-  { id: 1, text: 'New application received from Ana Dela Cruz.', createdAt: '2026-06-30T14:30:00' },
-  { id: 2, text: 'Application from Lorenzo Rivera was approved.', createdAt: '2026-06-30T11:15:00' },
-  { id: 3, text: 'A user profile change requires review.', createdAt: '2026-06-29T18:40:00' },
-  { id: 4, text: 'New research entry submission is awaiting review.', createdAt: '2026-06-28T09:05:00' },
-];
-
 app.get('/notifications', (req, res) => {
+  const notifications = [
+    { id: 1, text: 'New application received from Ana Dela Cruz.', createdAt: '2026-06-30T14:30:00' },
+    { id: 2, text: 'Application from Lorenzo Rivera was approved.', createdAt: '2026-06-30T11:15:00' },
+    { id: 3, text: 'A user profile change requires review.', createdAt: '2026-06-29T18:40:00' },
+    { id: 4, text: 'New research entry submission is awaiting review.', createdAt: '2026-06-28T09:05:00' },
+  ];
   res.json(notifications);
 });
 

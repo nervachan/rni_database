@@ -11,9 +11,13 @@
   "dependencies": {
     "@heroicons/vue": "^2.2.0",
     "@tailwindcss/vite": "^4.3.1",
+<<<<<<< HEAD
 
     
     "chart.js": "^4.5.1",
+=======
+    "firebase": "^12.15.0",
+>>>>>>> 00b2bcf2fe2463e5fc130af5ed16a35ed3b40c9f
     "pinia": "^3.0.4",
     "tailwindcss": "^4.3.1",
     "vue": "^3.5.34",

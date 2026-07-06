@@ -17,14 +17,14 @@ import IPMgmt from '../views/intto-pages/ipManagement.vue'
 
 const routes = [
     { path: '/', redirect: '/super-admin/dashboard'},
-    { path: '/login', name: 'Login', component: LoginView},
-    { path: '/register', name: 'Register', component: RegisterView },
+    { path: '/login', name: 'Login', component: LoginView}, // login route
+    { path: '/register', name: 'Register', component: RegisterView }, // register route
 
     { path: '/',
         component: AppLayout, 
         children: [
             {
-                path: 'super-admin',
+                path: 'super-admin', // Super-admin routes
                 component: SuperAdminView,
                 children: [
                     {path: 'dashboard', name: 'SuperAdminDashboard', component: SuperAdminDashboard},
@@ -34,7 +34,7 @@ const routes = [
                 ]
             },
             {
-                path: 'rso-admin',
+                path: 'rso-admin', // rso admin routes
                 component: RSOView,
                 children: [
                     {path: 'dashboard', name: 'RSODashboard', component: RSODashboard},
@@ -42,7 +42,7 @@ const routes = [
                 ]
             },
             {
-                path: 'intto-admin',
+                path: 'intto-admin', // intto admin routes
                 component: INTTOView,
                 children: [
                     {path: 'dashboard', name: 'INTTODashboard', component: inttoDashboard},
