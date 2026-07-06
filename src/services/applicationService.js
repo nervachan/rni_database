@@ -1,4 +1,4 @@
-const initialApplications = [
+const initialApplications = [ //Mock data, to be cleaned later
   {
     id: 1,
     name: 'Ana Dela Cruz',
@@ -25,6 +25,7 @@ const initialApplications = [
   },
 ];
 
+//functions to get, approve, and reject applications
 let applications = initialApplications.map((application) => ({ ...application }));
 
 export function getApplications() {
