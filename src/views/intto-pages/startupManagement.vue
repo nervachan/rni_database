@@ -1,32 +1,54 @@
 <script setup>
+/**
+ * startupManagement.vue
+ * -----------------------
+ * CRUD page for cohorts and startup projects, laid out as a 3-column
+ * browser: cohorts (col 1) -> projects within the selected cohort (col 2)
+ * -> detail/edit panel for the selected project (col 3). Supports adding
+ * cohorts, adding/editing/deleting projects (with optional logo upload),
+ * searching/filtering/paginating the project list, and duplicate-name
+ * checks scoped across all cohorts (not just the active one).
+ *
+ * Data shapes (see startupService.js):
+ *   cohort:  { id, name, value }  — value = live startup count in that cohort
+ *   startup: { id, cohortId, name, genre, shortDescription, logo }
+ */
 
 import { ref, computed, watch, onMounted } from 'vue'
 import { getCohorts, getStartups, createCohort, createStartup, updateStartup, deleteStartup } from '../../services/startupService.js'
 
-const activeCohortId  = ref(null)
-const loadError       = ref('')
-const activeProjectId = ref(null)
-const projectSearch   = ref('')
-const genreSearch     = ref('')
+// --- Navigation / selection state ---
+const activeCohortId  = ref(null)   // id of the cohort currently shown in column 2
+const loadError       = ref('')     // set if the initial loadData() fetch fails; rendered as a banner
+const activeProjectId = ref(null)   // id of the startup currently shown in column 3; null = show cohort-wide stats instead
+const projectSearch   = ref('')     // free-text filter on project name (column 2)
+const genreSearch     = ref('')     // genre filter on project list; '' or 'All' = no filter
 
-const showCohortModal     = ref(false)
-const showProjectModal    = ref(false)
-const showAddProjectModal = ref(false)
-const showDeleteConfirm   = ref(false)
-const deleteCandidate     = ref(null)
-const deleteError         = ref('')
-const cohortModalMode     = ref('select')
-const projectFormError    = ref('')
-const projectLogoError    = ref('')
-const itemsPerPage        = ref(10)
-const currentPage         = ref(1)
-const newProject          = ref({ name: '', genre: '', shortDescription: '', logo: '' })
-const editSelectedName    = ref('')
-const addSelectedName     = ref('')
+// --- Modal / form visibility + error state ---
+const showCohortModal     = ref(false)     // "Manage Cohorts" modal (select existing / add new)
+const showProjectModal    = ref(false)     // "Edit Project" modal
+const showAddProjectModal = ref(false)     // "Add Project" modal
+const showDeleteConfirm   = ref(false)     // delete-project confirmation modal
+const deleteCandidate     = ref(null)      // the startup object pending deletion
+const deleteError         = ref('')        // error shown in the delete confirmation modal if the API call fails
+const cohortModalMode     = ref('select')  // 'select' | 'add' — which tab is active inside the cohort modal
+const projectFormError    = ref('')        // validation/API error shared by the add and edit project forms
+const projectLogoError    = ref('')        // logo-specific error (e.g. file too large), shared by both forms
+const itemsPerPage        = ref(10)        // rows per page for paginatedStartups
+const currentPage         = ref(1)         // 1-indexed current page within the active cohort's project list
+const newProject          = ref({ name: '', genre: '', shortDescription: '', logo: '' })  // "Add Project" form model
+const editSelectedName    = ref('')        // display name of the chosen logo file in the edit form (UI only)
+const addSelectedName     = ref('')        // display name of the chosen logo file in the add form (UI only)
 
-const localCohorts  = ref([])
-const localStartups = ref([])
+// --- Loaded data ---
+const localCohorts  = ref([])   // all cohorts
+const localStartups = ref([])   // all startups, across all cohorts (filtered per-cohort in computed props below)
 
+/**
+ * Initial fetch on mount: loads cohorts and startups, then defaults
+ * activeCohortId to the first cohort in the list (if any exist).
+ * Any failure sets loadError instead of throwing.
+ */
 async function loadData() {
   loadError.value = ''
   try {
@@ -40,15 +62,29 @@ async function loadData() {
 
 onMounted(loadData)
 
+/**
+ * Genre options for the column-2 genre dropdown, scoped to the active
+ * cohort only (unlike genreOptions below, which spans all cohorts).
+ * Always includes 'All' as the first option to clear the filter.
+ */
 const allGenres = computed(() => {
   const inCohort = localStartups.value.filter(s => s.cohortId === activeCohortId.value)
   return ['All', ...new Set(inCohort.map(s => s.genre))]
 })
 
+/**
+ * Sorted, de-duplicated list of every genre used across ALL startups
+ * (not scoped to a cohort). Feeds the <datalist> autocomplete on the
+ * genre text input in the add/edit project modals.
+ */
 const genreOptions = computed(() =>
   Array.from(new Set(localStartups.value.map(s => s.genre.trim()).filter(Boolean))).sort()
 )
 
+/**
+ * Startups in the active cohort matching the current name search and
+ * genre filter. This is the base list that paginatedStartups slices.
+ */
 const filteredStartups = computed(() => {
   const name  = projectSearch.value.toLowerCase()
   const genre = genreSearch.value
@@ -59,41 +95,60 @@ const filteredStartups = computed(() => {
   )
 })
 
+/** Total pages for the current filteredStartups length. Never less than 1. */
 const totalPages = computed(() => Math.max(1, Math.ceil(filteredStartups.value.length / itemsPerPage.value)))
 
+/** The slice of filteredStartups shown on the current page in column 2. */
 const paginatedStartups = computed(() => {
   const start = (currentPage.value - 1) * itemsPerPage.value
   return filteredStartups.value.slice(start, start + itemsPerPage.value)
 })
 
+// Reset to page 1 whenever the search term, genre filter, active cohort,
+// or page size changes, so the user isn't left on a stale/out-of-range page.
 watch([projectSearch, genreSearch, activeCohortId, itemsPerPage], () => {
   currentPage.value = 1
 })
 
+// Safety net for when filteredStartups shrinks (e.g. after a delete) and
+// currentPage now points past the last page — clamps back into range.
 watch(filteredStartups, () => {
   if (currentPage.value > totalPages.value) {
     currentPage.value = totalPages.value
   }
 })
 
+/** The full startup object currently selected in column 3, or null if none is selected. */
 const activeProject = computed(() =>
   localStartups.value.find(s => s.id === activeProjectId.value) ?? null
 )
 
+/** Count of startups in the active cohort (used in the "no project selected" stats view). */
 const activeCohortCount = computed(() =>
   localStartups.value.filter(s => s.cohortId === activeCohortId.value).length
 )
 
+/**
+ * The 6 most recently created startups across all cohorts, newest first.
+ * Relies on higher ids meaning more recently created (auto-increment
+ * primary keys) rather than a createdAt timestamp.
+ */
 const recentStartups = computed(() =>
   [...localStartups.value]
     .sort((a, b) => b.id - a.id)
     .slice(0, 6)
 )
 
+/** Looks up a cohort's display name by id. Returns '' if not found. */
 function cohortName(id) {
   return localCohorts.value.find(c => c.id === id)?.name ?? ''
 }
 
+/**
+ * Switches the active cohort: updates column 2's scope, clears the
+ * selected project (it belonged to the previous cohort) and the genre
+ * filter (genre options are cohort-scoped), and closes the cohort modal.
+ */
 function selectCohort(id) {
   activeCohortId.value  = id
   activeProjectId.value = null
@@ -101,15 +156,24 @@ function selectCohort(id) {
   showCohortModal.value = false
 }
 
+/** Selects a project to display in column 3. */
 function selectProject(id) {
   activeProjectId.value = id
 }
 
+/** Opens the cohort modal, always starting on the "select" tab. */
 function openCohortModal() {
   cohortModalMode.value = 'select'
   showCohortModal.value = true
 }
 
+/**
+ * Derives the next auto-generated cohort name in the form "Cohort N",
+ * where N is one greater than the highest numeric suffix found among
+ * existing cohort names. Non-numeric or unparsable names are ignored
+ * (filtered out via `n > 0`). Falls back to "Cohort 1" if no existing
+ * cohort has a valid numeric suffix.
+ */
 function nextCohortName() {
   const existingNumbers = localCohorts.value
     .map(c => Number(c.name.replace(/[^0-9]/g, '')))
@@ -118,6 +182,10 @@ function nextCohortName() {
   return `Cohort ${nextNumber}`
 }
 
+/**
+ * Creates a new cohort using the auto-generated name from
+ * nextCohortName(), then makes it the active cohort and closes the modal.
+ */
 async function addCohort() {
   const name = nextCohortName()
   try {
@@ -130,6 +198,7 @@ async function addCohort() {
   }
 }
 
+/** Resets the "Add Project" form to blank and opens its modal. */
 function openAddProjectModal() {
   newProject.value = { name: '', genre: '', shortDescription: '', logo: '' }
   projectFormError.value = ''
@@ -137,20 +206,38 @@ function openAddProjectModal() {
   showAddProjectModal.value = true
 }
 
+/**
+ * Case-insensitive, whitespace-trimmed duplicate name check across ALL
+ * startups (every cohort, not just the active one) — a project name must
+ * be globally unique. Used by both addProject() and saveProject().
+ * @param {string} name - candidate project name
+ * @param {number|null} excludeId - id to exclude (the project being edited)
+ * @returns {object|undefined} the conflicting startup, if any
+ */
 function findProjectConflict(name, excludeId = null) {
   const normalized = name.trim().toLowerCase()
   return localStartups.value.find(s => s.id !== excludeId && s.name.trim().toLowerCase() === normalized)
 }
 
+/** Number of startups belonging to a given cohort id. */
 function cohortProjectCount(cohortId) {
   return localStartups.value.filter(s => s.cohortId === cohortId).length
 }
 
+/** Human-readable "N project(s)" label shown next to each cohort in the list/modal. */
 function cohortProjectCountLabel(cohortId) {
   const count = cohortProjectCount(cohortId)
   return `${count} ${count === 1 ? 'project' : 'projects'}`
 }
 
+/**
+ * Reads a selected logo image file as a data URL and stores it on the
+ * appropriate form model. Rejects files over 2MB (clears any previously
+ * selected logo/filename on that form instead of silently keeping it).
+ * @param {Event} event - file input change event
+ * @param {'new'|'edit'} target - which form to update: newProject (add
+ *   modal) or editForm (edit modal)
+ */
 function handleLogoUpload(event, target = 'new') {
   const file = event.target.files?.[0]
   if (!file) return
@@ -180,11 +267,19 @@ function handleLogoUpload(event, target = 'new') {
   reader.readAsDataURL(file)
 }
 
+/** Thin wrapper so the "Add Project" file input doesn't need to pass the 'new' target inline in the template. */
 function onAddFileSelected(event) {
   handleLogoUpload(event, 'new')
 }
 
-
+/**
+ * Validates and submits the "Add Project" form: requires a non-empty,
+ * globally-unique name. On success, creates the startup via the API,
+ * appends it to `localStartups`, and increments the active cohort's
+ * local `value` (startup count) so the cohort list reflects the new
+ * total without a full reload. Closes the modal on success; leaves it
+ * open with an error message on failure.
+ */
 async function addProject() {
   const name = newProject.value.name.trim()
   if (!name) {
@@ -217,8 +312,13 @@ async function addProject() {
   }
 }
 
+// "Edit Project" form model — populated from activeProject when the edit modal opens.
 const editForm = ref({ id: null, name: '', genre: '', shortDescription: '', logo: '' })
 
+/**
+ * Opens the "Edit Project" modal, pre-filled with a shallow copy of the
+ * currently active project. No-op if no project is selected.
+ */
 function openEditModal() {
   if (!activeProject.value) return
   editForm.value = { ...activeProject.value }
@@ -227,19 +327,30 @@ function openEditModal() {
   showProjectModal.value = true
 }
 
-// Delete Project
+// --- Delete Project ---
+
+/** Opens the delete confirmation modal for a given project. */
 function requestDelete(project) {
   deleteCandidate.value = project
   deleteError.value = ''
   showDeleteConfirm.value = true
 }
 
+/** Closes the delete confirmation modal without deleting anything. */
 function cancelDelete() {
   deleteCandidate.value = null
   deleteError.value = ''
   showDeleteConfirm.value = false
 }
 
+/**
+ * Deletes the pending project via the API, then removes it from
+ * `localStartups` and decrements its cohort's local `value` count.
+ * If the deleted project was open in column 3, clears the selection so
+ * the detail panel falls back to the cohort-wide stats view. Leaves the
+ * modal open with an error message if the API call fails (so nothing is
+ * removed locally unless the delete actually succeeded).
+ */
 async function confirmDelete() {
   if (!deleteCandidate.value) return
 
@@ -260,6 +371,15 @@ async function confirmDelete() {
   }
 }
 
+/**
+ * Validates and submits the "Edit Project" form: requires a non-empty
+ * name that isn't already used by another project (excluding the project
+ * being edited itself). On success, replaces the record in
+ * `localStartups` with the server's updated version and closes the modal.
+ * Note: unlike addProject(), this does not adjust any cohort's `value`
+ * count — editing a project never changes which cohort it belongs to
+ * here, so counts stay accurate without adjustment.
+ */
 async function saveProject() {
   const name = editForm.value.name.trim()
   if (!name) {
@@ -563,6 +683,14 @@ async function saveProject() {
             placeholder="Genre (e.g. HealthTech)"
             class="w-full rounded-2xl border border-gray-200 bg-gray-100 px-4 py-3 text-sm text-black outline-none focus:border-[#263e30]"
           />
+          <!-- FLAG: this same id="genre-options" datalist is duplicated below
+               in the Edit Project Modal. Duplicate ids are invalid HTML —
+               the browser will always resolve the input's `list` attribute
+               to whichever one comes first in the DOM, so the Edit modal's
+               genre autocomplete may silently use the wrong (Add modal's)
+               datalist if both are ever rendered in the same DOM pass.
+               Recommend giving each a unique id, e.g. "genre-options-add"
+               and "genre-options-edit". -->
           <datalist id="genre-options">
             <option v-for="genre in genreOptions" :key="genre" :value="genre" />
           </datalist>

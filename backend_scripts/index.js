@@ -122,6 +122,20 @@ app.patch('/startups/:id', async (req, res) => {
   res.json({ startup: data });
 });
 
+app.delete('/startups/:id', async (req, res) => {
+  const { error } = await supabase
+    .from('startups')
+    .delete()
+    .eq('id', req.params.id);
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ success: true });
+});
+
 app.get('/ips', async (req, res) => {
   const { data, error } = await supabase
     .from('ips')
