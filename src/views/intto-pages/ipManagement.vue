@@ -1,4 +1,18 @@
 <script setup>
+/**
+ * ipManagement.vue
+ * -----------------
+ * CRUD page for IP filing records (patents, trademarks, copyrights,
+ * industrial designs, utility models). Supports search/filter/sort,
+ * pagination, single and bulk status updates (with one-level undo),
+ * bulk delete, CSV export, and CSV import.
+ *
+ * Data shape (see ipService.js toClientRecord):
+ *   { id, title, inventors: string[], filingDate, status, classification, refNumber }
+ * `status` is a single string on the client (one of statusOptions below),
+ * not an array — code that still treats it as an array is stale (see
+ * flagged comments further down).
+ */
 
 import { ref, computed, reactive, watch, onMounted } from 'vue'
 import { getIpRecords, createIpRecord, updateIpRecord, deleteIpRecord } from '../../services/ipService.js'
@@ -6,34 +20,41 @@ import { downloadExport } from '../../utils/exportUtils.js'
 
 defineEmits(['view'])
 
-const rows = ref([])
-const loadError = ref('')
+const rows = ref([])        // all IP records loaded from the backend (unfiltered, unsorted)
+const loadError = ref('')   // set if the initial loadRecords() fetch fails; rendered as a banner
 
 // --- Toolbar state ---
-const search       = ref('')
-const filterStatus = ref('')
-const filterClass  = ref('')
-const sortKey      = ref('')
-const itemsPerPage = ref(10)
-const currentPage  = ref(1)
-const exportFormat = ref('csv')
-const bulkStatus   = ref('Pending')
-const statusOptions = ['Pending', 'Granted', 'Licensed', 'Abandoned']
-const selectedIds  = ref([])
-const importError  = ref('')
-const lastBulkStatusChange = ref(null)
+const search       = ref('')          // free-text search across title/inventors/classification/status
+const filterStatus = ref('')          // exact-match status filter; '' = all statuses
+const filterClass  = ref('')          // exact-match classification filter; '' = all classifications
+const sortKey      = ref('')          // one of '', 'title', 'titleDesc', 'date', 'dateDesc'
+const itemsPerPage = ref(10)          // rows per page for paginatedRows
+const currentPage  = ref(1)           // 1-indexed current page
+const exportFormat = ref('csv')       // format passed to downloadExport() when exporting
+const bulkStatus   = ref('Pending')   // status value applied by the "Apply status" bulk action
+const statusOptions = ['Pending', 'Granted', 'Licensed', 'Abandoned']   // valid values for record.status
+const selectedIds  = ref([])          // ids of rows checked via row/page checkboxes; drives the bulk action bar
+const importError  = ref('')          // validation error shown after a failed CSV import
+const lastBulkStatusChange = ref(null) // snapshot of the last bulk status update, used by undoBulkStatusChange()
 
 // --- Form state ---
-const showForm  = ref(false)
-const editingId = ref(null)
+const showForm  = ref(false)   // toggles the add/edit record modal
+const editingId = ref(null)    // id of the record being edited; null when adding a new record
 const form = reactive({ title: '', inventors: '', filingDate: '', classification: '', status: '' })
-const formError = ref('')
+const formError = ref('')      // validation message shown inside the form modal
 
+/** Returns a fresh, empty form object. Used to reset `form` when opening the "add" modal. */
 const blankForm = () => ({ title: '', inventors: '', filingDate: '', classification: '', status: '' })
 
-const deleteCandidate = ref(null)
-const showDeleteConfirm = ref(false)
+const deleteCandidate = ref(null)     // the row (or synthetic { title, id: null } for bulk) pending deletion
+const showDeleteConfirm = ref(false)  // toggles the delete confirmation modal
 
+/**
+ * Opens the record modal, either blank (add mode) or pre-filled (edit mode).
+ * @param {object|null} row - existing record to edit, or null to add a new one.
+ *   `inventors` (array) is joined into a comma-separated string for the text input;
+ *   submitForm() splits it back into an array on save.
+ */
 function openForm(row = null) {
   formError.value = ''
   if (row) {
@@ -42,8 +63,10 @@ function openForm(row = null) {
     form.inventors      = row.inventors.join(', ')
     form.filingDate     = row.filingDate
     form.classification = row.classification
+    // FLAG: obsolete — status was previously stored as an array on the record;
+    // it is now a single string (see ipService.toClientRecord). Safe to delete.
     // form.status         = row.status[0] ?? ''
-    form.status         = row.status ?? '' 
+    form.status         = row.status ?? ''
   } else {
     editingId.value = null
     Object.assign(form, blankForm())
@@ -51,17 +74,32 @@ function openForm(row = null) {
   showForm.value = true
 }
 
+/** Closes the record modal and clears edit/error state without saving. */
 function cancelForm() {
   showForm.value  = false
   editingId.value = null
   formError.value = ''
 }
 
+/**
+ * Case-insensitive, whitespace-trimmed duplicate title check across all
+ * loaded records.
+ * @param {string} title - candidate title to check
+ * @param {number|null} excludeId - id to exclude from the check (the record
+ *   currently being edited, so it doesn't flag itself as a duplicate)
+ * @returns {boolean} true if another record already has this title
+ */
 function recordTitleAlreadyExists(title, excludeId = null) {
   const normalized = title.trim().toLowerCase()
   return rows.value.some(r => r.id !== excludeId && r.title.trim().toLowerCase() === normalized)
 }
 
+/**
+ * Validates and submits the add/edit form. Blocks on empty title or a
+ * duplicate title. On edit, updates the local row optimistically before
+ * awaiting the API call; on add, waits for the server-created record
+ * (with its real id) before pushing it into `rows`.
+ */
 async function submitForm() {
   const title = form.title.trim()
   if (!title) {
@@ -97,34 +135,50 @@ async function submitForm() {
   cancelForm()
 }
 
+/** Opens the delete confirmation modal for a single row. */
 function requestDelete(row) {
   deleteCandidate.value = row
   showDeleteConfirm.value = true
 }
 
+/** Closes the delete confirmation modal without deleting anything. */
 function cancelDelete() {
   deleteCandidate.value = null
   showDeleteConfirm.value = false
 }
 
+/**
+ * Removes a record from local state by id (local-only; does not call the
+ * API — callers are responsible for the corresponding deleteIpRecord()
+ * call). Also drops the id from selectedIds so a deleted row can't remain
+ * "selected".
+ */
 function deleteRow(id) {
   rows.value = rows.value.filter(r => r.id !== id)
   selectedIds.value = selectedIds.value.filter(selectedId => selectedId !== id)
 }
 
+/** True when every row on the current page is selected. Drives the header checkbox state. */
 const allPageSelected = computed(() => {
   const pageIds = paginatedRows.value.map(r => r.id)
   return pageIds.length > 0 && pageIds.every(id => selectedIds.value.includes(id))
 })
 
+/** Full record objects for the currently selected ids (used by export/bulk actions). */
 const selectedRows = computed(() => rows.value.filter(row => selectedIds.value.includes(row.id)))
 
+/** Adds or removes a single row id from the selection. */
 function toggleRowSelection(id) {
   const index = selectedIds.value.indexOf(id)
   if (index >= 0) selectedIds.value.splice(index, 1)
   else selectedIds.value.push(id)
 }
 
+/**
+ * Header checkbox handler: selects every row on the current page, or
+ * deselects them if the page is already fully selected. Preserves
+ * selections made on other pages.
+ */
 function togglePageSelection() {
   const pageIds = paginatedRows.value.map(r => r.id)
   if (allPageSelected.value) {
@@ -134,10 +188,13 @@ function togglePageSelection() {
   }
 }
 
+/** Clears all row selections (used by the "Clear selection" bulk-bar button). */
 function clearSelection() {
   selectedIds.value = []
 }
 
+// FLAG: obsolete — dead code from when record.status was an array.
+// Superseded by the bulkUpdateStatus() below. Safe to delete this block.
 // function bulkUpdateStatus() {
 //   if (!selectedIds.value.length) return
 
@@ -158,6 +215,15 @@ function clearSelection() {
 //   }
 // }
 
+/**
+ * Applies `bulkStatus` to every selected record, both locally and via the
+ * API. Captures each record's prior status in `lastBulkStatusChange` so
+ * undoBulkStatusChange() can revert it. Each row's API call is fired
+ * independently (not awaited as a batch) — if one PATCH fails partway
+ * through, some records will have updated status locally with no error
+ * surfaced; there is no rollback on partial failure.
+ * No-op if nothing is selected.
+ */
 function bulkUpdateStatus() {
   if (!selectedIds.value.length) return
 
@@ -178,6 +244,12 @@ function bulkUpdateStatus() {
   }
 }
 
+/**
+ * Reverts the most recent bulkUpdateStatus() call using the snapshot in
+ * `lastBulkStatusChange`. Single-level undo only — running bulkUpdateStatus
+ * again overwrites the snapshot, so only the last bulk change can be undone.
+ * No-op if there is no recorded bulk change to undo.
+ */
 function undoBulkStatusChange() {
   if (!lastBulkStatusChange.value) return
 
@@ -194,12 +266,22 @@ function undoBulkStatusChange() {
   lastBulkStatusChange.value = null
 }
 
+/**
+ * Opens the delete confirmation modal in "bulk" mode: sets a synthetic
+ * deleteCandidate with `id: null` so confirmDelete() knows to delete every
+ * selected row instead of a single record.
+ */
 function bulkDelete() {
   if (!selectedIds.value.length) return
   deleteCandidate.value = { title: `${selectedIds.value.length} selected records`, id: null }
   showDeleteConfirm.value = true
 }
 
+/**
+ * Confirms whichever delete was requested: a single row (deleteCandidate.id
+ * set) or the full current selection (deleteCandidate.id === null, set by
+ * bulkDelete()). Clears selection after a bulk delete.
+ */
 function confirmDelete() {
   if (deleteCandidate.value) {
     if (deleteCandidate.value.id != null) {
@@ -216,10 +298,20 @@ function confirmDelete() {
   }
 }
 
+/**
+ * Determines which rows an export action applies to: the current selection
+ * if anything is checked, otherwise every row currently visible under the
+ * active search/filter/sort (not the full unfiltered `rows`).
+ */
 function getExportRows() {
   return selectedIds.value.length ? selectedRows.value : displayedRows.value
 }
 
+/**
+ * Builds a flat export payload (inventors array joined into a
+ * comma-separated string) and hands it to downloadExport() using the
+ * selected exportFormat. No-op if there are no rows to export.
+ */
 function exportRows() {
   const rowsToExport = getExportRows()
   if (!rowsToExport.length) return
@@ -228,16 +320,22 @@ function exportRows() {
     title: r.title,
     inventors: r.inventors.join(', '),
     filingDate: r.filingDate,
+    // FLAG: obsolete — status was previously an array; safe to delete this line.
     // status: r.status.join(', '),
-
     status: r.status,
-
-
     classification: r.classification,
   }))
   downloadExport('ip_records', headers, payload, exportFormat.value)
 }
 
+/**
+ * Minimal CSV parser: splits on line breaks then commas, lower-cases the
+ * header row for case-insensitive field lookup. Does not handle quoted
+ * fields containing commas or embedded newlines — only safe for simple,
+ * unquoted CSV exports (e.g. round-tripping this page's own export format).
+ * @param {string} text - raw CSV file contents
+ * @returns {object[]} one object per data row, keyed by lower-cased header
+ */
 function parseCsv(text) {
   const lines = text.trim().split(/\r?\n/).filter(line => line.trim())
   if (!lines.length) return []
@@ -252,6 +350,16 @@ function parseCsv(text) {
   })
 }
 
+/**
+ * Handles the "Import CSV" file input. Validates the file extension,
+ * parses it with parseCsv(), checks every row has the five required
+ * fields, then creates one IP record per row via sequential
+ * createIpRecord() calls (awaited one at a time inside the loop —
+ * intentional so records are created in file order and pushed into
+ * `rows` in a stable, predictable sequence rather than racing).
+ * Resets the file input's value at every exit point so the same file
+ * can be re-selected after a failed import.
+ */
 async function handleImportFile(event) {
   const file = event.target.files?.[0]
   importError.value = ''
@@ -288,8 +396,8 @@ async function handleImportFile(event) {
         inventors: csvRow.inventors.split(',').map(s => s.trim()).filter(Boolean),
         filingDate: csvRow.filingdate.trim(),
         classification: csvRow.classification.trim(),
+        // FLAG: obsolete — status was previously an array; safe to delete this line.
         // status: [csvRow.status.trim()],
-
         status: csvRow.status.trim(),
       }
       const created = await createIpRecord(record)
@@ -301,11 +409,11 @@ async function handleImportFile(event) {
   reader.readAsText(file)
 }
 
+/** Initial fetch of all IP records on page mount. Populates `rows` or sets loadError. */
 async function loadRecords() {
   loadError.value = ''
   try {
     rows.value = await getIpRecords()
-  
   } catch (err) {
     loadError.value = 'Failed to load IP records. ' + err.message
   }
@@ -314,6 +422,15 @@ async function loadRecords() {
 onMounted(loadRecords)
 
 // --- Filtered + sorted view ---
+
+/**
+ * Central derived view of `rows`: applies free-text search, status filter,
+ * classification filter, then sort, in that fixed order. Recomputes
+ * automatically whenever any of its dependencies (rows, search,
+ * filterStatus, filterClass, sortKey) change.
+ * Sort is single-key only — selecting a new sortKey replaces rather than
+ * combines with any previous sort.
+ */
 const displayedRows = computed(() => {
   let result = rows.value
 
@@ -322,11 +439,10 @@ const displayedRows = computed(() => {
     r.title.toLowerCase().includes(q) ||
     r.inventors.join(' ').toLowerCase().includes(q) ||
     r.classification.toLowerCase().includes(q) ||
-    // 
-    
     r.status.toLowerCase().includes(q)
   )
 
+  // FLAG: obsolete — status was previously an array; safe to delete this line.
   // if (filterStatus.value)
   //   result = result.filter(r => r.status.includes(filterStatus.value))
 
@@ -344,23 +460,32 @@ const displayedRows = computed(() => {
   return result
 })
 
+/** Total number of pages for the current displayedRows length. Never less than 1. */
 const totalPages = computed(() => Math.max(1, Math.ceil(displayedRows.value.length / itemsPerPage.value)))
 
+/** The slice of displayedRows shown on the current page. */
 const paginatedRows = computed(() => {
   const start = (currentPage.value - 1) * itemsPerPage.value
   return displayedRows.value.slice(start, start + itemsPerPage.value)
 })
 
+// Reset to page 1 whenever a filter/sort/page-size input changes, so the
+// user doesn't land on a now-out-of-range page after narrowing results.
 watch([search, filterStatus, filterClass, sortKey, itemsPerPage], () => {
   currentPage.value = 1
 })
 
+// Safety net for the case where displayedRows shrinks (e.g. after a delete)
+// and currentPage now points past the last page — clamps back to the new
+// last page instead of showing an empty page.
 watch(displayedRows, () => {
   if (currentPage.value > totalPages.value) {
     currentPage.value = totalPages.value
   }
 })
 
+// FLAG: obsolete — dead code from when record.status was an array.
+// Superseded by the statusClass() below. Safe to delete this block.
 // function statusClass(status) {
 //   const s = status.join(' ')
 //   if (s.includes('Granted'))   return 'bg-[#2ecc71]/10 text-[#2ecc71] group-hover:bg-[#2ecc71] group-hover:text-[#eff2f0]'
@@ -370,6 +495,13 @@ watch(displayedRows, () => {
 //   return 'bg-white/10 text-white/60 group-hover:bg-white/80 group-hover:text-[#eff2f0]'
 // }
 
+/**
+ * Maps a status string to the Tailwind classes used for its pill badge in
+ * the table (and its hover-state color). Falls through to a neutral grey
+ * style for any status value not in statusOptions.
+ * @param {string} status
+ * @returns {string} space-separated Tailwind class list
+ */
 function statusClass(status) {
   if (status === 'Granted')   return 'bg-[#2ecc71]/10 text-[#2ecc71] group-hover:bg-[#2ecc71] group-hover:text-[#eff2f0]'
   if (status === 'Pending')   return 'bg-[#e6a817]/10 text-[#e6a817] group-hover:bg-[#e6a817] group-hover:text-[#eff2f0]'
@@ -436,7 +568,7 @@ function statusClass(status) {
         <option value="Trademark">Trademark</option>
         <option value="Copyright">Copyright</option>
         <option value="Industrial Design">Industrial Design</option>
-        <option value="Trade secret">Trade secret</option>
+        
         <option value="Utility model">Utility model</option>
       </select>
 
@@ -526,7 +658,6 @@ function statusClass(status) {
                   <option>Trademark</option>
                   <option>Copyright</option>
                   <option>Industrial Design</option>
-                  <option>Trade secret</option>
                   <option>Utility model</option>
                 </select>
               </div>

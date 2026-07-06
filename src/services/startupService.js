@@ -112,3 +112,9 @@ export async function updateStartup(id, payload) {
 
   return toClientStartup(startup)
 }
+
+export async function deleteStartup(id) {
+  const res = await fetch(`${API_BASE}/startups/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`Failed to delete startup (${res.status})`)
+  return true
+}
