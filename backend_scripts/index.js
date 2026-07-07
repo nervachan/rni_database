@@ -15,6 +15,18 @@ app.use((req, res, next) => {
   next();
 });
 
+function isValidId(id) {
+  return /^\d+$/.test(id);
+}
+
+function pick(body, allowedKeys) {
+  const result = {};
+  for (const key of allowedKeys) {
+    if (body[key] !== undefined) result[key] = body[key];
+  }
+  return result;
+}
+
 // Test endpoint
 app.get('/test', (req, res) => {
   res.json({ message: 'Backend is working' });
@@ -120,9 +132,11 @@ app.get('/cohorts', async (req, res) => {
 });
 
 app.post('/cohorts', async (req, res) => {
+  const payload = pick(req.body, ['cohort_name']);
+
   const { data, error } = await supabase
     .from('cohorts')
-    .insert(req.body)
+    .insert(payload)
     .select()
     .single();
 
@@ -148,9 +162,11 @@ app.get('/startups', async (req, res) => {
 });
 
 app.post('/startups', async (req, res) => {
+  const payload = pick(req.body, ['cohort_id', 'name', 'genre', 'short_description', 'logo_url']);
+
   const { data, error } = await supabase
     .from('startups')
-    .insert(req.body)
+    .insert(payload)
     .select()
     .single();
 
@@ -163,9 +179,15 @@ app.post('/startups', async (req, res) => {
 });
 
 app.patch('/startups/:id', async (req, res) => {
+  if (!isValidId(req.params.id)) {
+    return res.status(400).json({ error: 'Invalid id' });
+  }
+
+  const payload = pick(req.body, ['cohort_id', 'name', 'genre', 'short_description', 'logo_url']);
+
   const { data, error } = await supabase
     .from('startups')
-    .update(req.body)
+    .update(payload)
     .eq('id', req.params.id)
     .select()
     .single();
@@ -179,6 +201,10 @@ app.patch('/startups/:id', async (req, res) => {
 });
 
 app.delete('/startups/:id', async (req, res) => {
+  if (!isValidId(req.params.id)) {
+    return res.status(400).json({ error: 'Invalid id' });
+  }
+
   const { error } = await supabase
     .from('startups')
     .delete()
@@ -206,9 +232,11 @@ app.get('/ips', async (req, res) => {
 });
 
 app.post('/ips', async (req, res) => {
+  const payload = pick(req.body, ['title', 'inventors', 'filing_date', 'status', 'classification_id', 'ref_number']);
+
   const { data, error } = await supabase
     .from('ips')
-    .insert(req.body)
+    .insert(payload)
     .select()
     .single();
 
@@ -221,9 +249,15 @@ app.post('/ips', async (req, res) => {
 });
 
 app.patch('/ips/:id', async (req, res) => {
+  if (!isValidId(req.params.id)) {
+    return res.status(400).json({ error: 'Invalid id' });
+  }
+
+  const payload = pick(req.body, ['title', 'inventors', 'filing_date', 'status', 'classification_id', 'ref_number']);
+
   const { data, error } = await supabase
     .from('ips')
-    .update(req.body)
+    .update(payload)
     .eq('id', req.params.id)
     .select()
     .single();
@@ -237,6 +271,10 @@ app.patch('/ips/:id', async (req, res) => {
 });
 
 app.delete('/ips/:id', async (req, res) => {
+  if (!isValidId(req.params.id)) {
+    return res.status(400).json({ error: 'Invalid id' });
+  }
+
   const { error } = await supabase
     .from('ips')
     .delete()
