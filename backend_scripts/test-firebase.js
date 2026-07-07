@@ -1,2 +1,2 @@
-const { auth } = require('./firebase.js');
+const { auth } = require('../firebase.cjs');
 console.log('Firebase admin auth initialized:', auth);
