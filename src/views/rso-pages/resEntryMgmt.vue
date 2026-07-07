@@ -37,6 +37,9 @@ const modalMode = ref('add');
 const selectedEntry = ref(null);
 const hasUnsavedChanges = ref(false);
 const loadError = ref('');
+const isLoading = ref(true);
+const isSaving = ref(false);
+const isDeleting = ref(false);
 const modalError = ref('');
 // Confirmation modal
 const confirmModalOpen = ref(false);
@@ -59,11 +62,14 @@ const formEntry = ref(createEmptyEntry());
 const researchEntries = ref([]);
 
 async function loadEntries() {
+  isLoading.value = true;
   loadError.value = '';
   try {
     researchEntries.value = await getResearchEntries();
   } catch (err) {
     loadError.value = 'Failed to load research entries. ' + err.message;
+  } finally {
+    isLoading.value = false;
   }
 }
 
@@ -323,6 +329,7 @@ function saveEntry() {
   openConfirm(
     modalMode.value === 'add' ? 'Add this research entry?' : 'Save changes to this entry?',
     async () => {
+      isSaving.value = true;
       try {
         if (modalMode.value === 'add') {
           const created = await createResearchEntry(payload);
@@ -334,6 +341,8 @@ function saveEntry() {
         closeModal();
       } catch (err) {
         modalError.value = 'Failed to save research entry. ' + err.message;
+      } finally {
+        isSaving.value = false;
       }
     }
   );
@@ -342,12 +351,15 @@ function saveEntry() {
 async function deleteEntry() {
   if (!selectedEntry.value) return;
   const id = selectedEntry.value.id;
+  isDeleting.value = true;
   try {
     await deleteResearchEntry(id);
     researchEntries.value = researchEntries.value.filter((entry) => entry.id !== id);
     closeModal();
   } catch (err) {
     modalError.value = 'Failed to delete research entry. ' + err.message;
+  } finally {
+    isDeleting.value = false;
   }
 }
 
@@ -421,7 +433,15 @@ function handleTableAction({ action, row }) {
       </div>
     </div>
 
+    <div v-if="isLoading" class="flex items-center justify-center py-16">
+      <svg class="h-6 w-6 animate-spin text-[#263e30]" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+      </svg>
+    </div>
+
     <ReusableTable
+      v-else
       :rows="paginatedEntries"
       :columns="tableColumns"
       :actions="tableActions"
@@ -476,8 +496,12 @@ function handleTableAction({ action, row }) {
             <button class="rounded-md bg-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-300" @click="closeModal">
               Cancel
             </button>
-            <button class="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700" @click="deleteEntry">
-              Delete
+            <button class="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60 flex items-center gap-2" :disabled="isDeleting" @click="deleteEntry">
+              <svg v-if="isDeleting" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+              </svg>
+              {{ isDeleting ? 'Deleting...' : 'Delete' }}
             </button>
           </div>
         </div>
@@ -524,8 +548,12 @@ function handleTableAction({ action, row }) {
             <button type="button" class="rounded-md bg-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-300" @click="confirmDiscard">
               Cancel
             </button>
-            <button type="button" class="rounded-md bg-[#263e30] px-4 py-2 text-sm font-medium text-white transition hover:opacity-80" @click="saveEntry">
-              Save
+            <button type="button" class="rounded-md bg-[#263e30] px-4 py-2 text-sm font-medium text-white transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60 flex items-center gap-2" :disabled="isSaving" @click="saveEntry">
+              <svg v-if="isSaving" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+              </svg>
+              {{ isSaving ? 'Saving...' : 'Save' }}
             </button>
           </div>
         </form>

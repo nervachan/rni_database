@@ -6,13 +6,17 @@ import { getResearchEntries } from '../../services/researchEntryService';
 
 const researchEntries = ref([]);
 const loadError = ref('');
+const isLoading = ref(true);
 
 async function loadData() {
+  isLoading.value = true;
   loadError.value = '';
   try {
     researchEntries.value = await getResearchEntries();
   } catch (err) {
     loadError.value = 'Failed to load research entries. ' + err.message;
+  } finally {
+    isLoading.value = false;
   }
 }
 
@@ -47,8 +51,15 @@ const recentEntries = computed(() => researchEntries.value.slice(0, 5).map((entr
           {{ loadError }}
         </div>
 
+        <div v-if="isLoading" class="flex items-center justify-center py-16">
+          <svg class="h-6 w-6 animate-spin text-[#263e30]" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+          </svg>
+        </div>
+
         <!--2 Stat Cards-->
-        <div class="statCards grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div v-else class="statCards grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="totalUsers flex flex-col bg-[#ffffff] rounded-lg p-3 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] gap-1">
                 <span class="w-9 h-9 flex flex-col items-center justify-center rounded-2xl bg-blue-100"><BookOpenIcon class="w-6 h-6 text-blue-500"/></span>
                 <p>Total Research Entries</p>
