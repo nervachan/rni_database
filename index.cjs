@@ -1,6 +1,12 @@
 const express = require('express');
 const cors = require('cors');
-const { supabase } = require('./supabaseClient');
+const { supabase } = require('./supabaseClient.cjs');
+let auth = null;
+try {
+  ({ auth } = require('./firebase.cjs'));
+} catch (err) {
+  console.error('Firebase not configured (missing firebase-service-account.json). /applications routes that require Firebase will return 503 until it is added.');
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -305,24 +311,50 @@ app.get('/applications', async (req, res) => {
 
 // Submit an application
 app.post('/applications', async (req, res) => {
-  const { firstName, lastName, email, role } = req.body;
+  const { email, password, firstName, lastName, role } = req.body;
 
-  if (!firstName || !lastName || !email || !role) {
+  if (!email || !password || !firstName || !lastName || !role) {
     return res.status(400).json({ error: 'Missing required fields' });
+  } if (!auth) {
+    return res.status(503).json({ error: 'Firebase is not configured on this server yet.' });
+  }
+
+  let userRecord;
+  try {
+    userRecord = await auth.createUser({
+      email,
+      password,
+      displayName: `${firstName} ${lastName}`,
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: err.message });
   }
 
   const { data, error } = await supabase
     .from('applications')
-    .insert({ first_name: firstName, last_name: lastName, email, role, status: 'pending' })
+    .insert({
+      firebase_uid: userRecord.uid,
+      first_name: firstName,
+      last_name: lastName,
+      email,
+      role,
+      status: 'pending',
+    })
     .select()
     .single();
 
   if (error) {
     console.error(error);
+    try {
+      await auth.deleteUser(userRecord.uid);
+    } catch (cleanupErr) {
+      console.error('Failed to roll back Firebase user after Supabase insert failure:', cleanupErr);
+    }
     return res.status(500).json({ error: error.message });
   }
 
-  res.status(201).json({ application: data });
+  res.status(201).json({ application: data, firebaseUid: userRecord.uid });
 });
 
 app.patch('/applications/:id/approve', async (req, res) => {
@@ -352,6 +384,7 @@ app.patch('/applications/:id/approve', async (req, res) => {
   const { error: insertError } = await supabase
     .from('users')
     .insert({
+      firebase_uid: application.firebase_uid,
       name: `${application.first_name} ${application.last_name}`,
       email: application.email,
       role: application.role,
@@ -368,6 +401,19 @@ app.patch('/applications/:id/approve', async (req, res) => {
 app.patch('/applications/:id/reject', async (req, res) => {
   const { id } = req.params;
 
+  const { data: application, error: fetchError } = await supabase
+    .from('applications')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  if (fetchError) {
+    console.error(fetchError);
+    return res.status(404).json({ error: 'Application not found' });
+  } if (!auth) {
+    return res.status(503).json({ error: 'Firebase is not configured on this server yet.' });
+  }
+
   const { error } = await supabase
     .from('applications')
     .update({ status: 'rejected' })
@@ -376,6 +422,12 @@ app.patch('/applications/:id/reject', async (req, res) => {
   if (error) {
     console.error(error);
     return res.status(500).json({ error: error.message });
+  }
+
+  try {
+    await auth.deleteUser(application.firebase_uid);
+  } catch (deleteError) {
+    console.error('Failed to delete Firebase user:', deleteError);
   }
 
   res.json({ message: 'Application rejected' });
