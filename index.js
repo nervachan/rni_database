@@ -1,5 +1,5 @@
 const express = require('express');
-const { auth } = require('../firebase.cjs');
+const { auth } = require('./firebase.cjs');
 const { supabase } = require('./supabaseClient');
 
 const app = express();
