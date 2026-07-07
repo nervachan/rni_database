@@ -1,11 +1,7 @@
 const express = require('express');
-<<<<<<< HEAD
 const cors = require('cors');
-=======
-const { auth } = require('./firebase');
 const { supabase } = require('./supabaseClient');
 
->>>>>>> 00b2bcf2fe2463e5fc130af5ed16a35ed3b40c9f
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -41,7 +37,7 @@ app.get('/users', async (req, res) => {
 // Get all research entries
 app.get('/research-entries', async (req, res) => {
   const { data, error } = await supabase
-    .from('research-entries')
+    .from('research_entries')
     .select('*');
 
   if (error) {
@@ -49,10 +45,54 @@ app.get('/research-entries', async (req, res) => {
     return res.status(500).json({ error: error.message });
   }
 
-  res.json({ 'research-entries': data });
+  res.json({ entries: data });
 });
 
-<<<<<<< HEAD
+app.post('/research-entries', async (req, res) => {
+  const { data, error } = await supabase
+    .from('research_entries')
+    .insert(req.body)
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ entry: data });
+});
+
+app.patch('/research-entries/:id', async (req, res) => {
+  const { data, error } = await supabase
+    .from('research_entries')
+    .update(req.body)
+    .eq('id', req.params.id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ entry: data });
+});
+
+app.delete('/research-entries/:id', async (req, res) => {
+  const { error } = await supabase
+    .from('research_entries')
+    .delete()
+    .eq('id', req.params.id);
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ success: true });
+});
+
 app.get('/classifications', async (req, res) => {
   const { data, error } = await supabase
     .from('classifications')
@@ -210,154 +250,97 @@ app.delete('/ips/:id', async (req, res) => {
   res.json({ success: true });
 });
 
-// Applications
-let applications = [
-  { id: 1, name: 'Ana Dela Cruz', role: 'INTTO', email: 'ana.delacruz@example.com', dateApplied: '2026-06-30', status: 'pending' },
-  { id: 2, name: 'Lorenzo Rivera', role: 'RSO', email: 'lorenzo.rivera@example.com', dateApplied: '2026-06-29', status: 'pending' },
-  { id: 3, name: 'Bea Mendoza', role: 'INTTO', email: 'bea.mendoza@example.com', dateApplied: '2026-06-28', status: 'pending' },
-];
-=======
+// Get pending applications
+app.get('/applications', async (req, res) => {
+  const { data, error } = await supabase
+    .from('applications')
+    .select('*')
+    .eq('status', 'pending');
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ applications: data });
+});
+
+// Submit an application
 app.post('/applications', async (req, res) => {
-  try {
-    const { email, password, firstName, lastName, role } = req.body;
->>>>>>> 00b2bcf2fe2463e5fc130af5ed16a35ed3b40c9f
+  const { firstName, lastName, email, role } = req.body;
 
-    if (!email || !password || !firstName || !lastName || !role) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-
-    const userRecord = await auth.createUser({
-      email,
-      password,
-      displayName: `${firstName} ${lastName}`
-    });
-
-    const { data, error } = await supabase
-      .from('applications')
-      .insert({
-        firebase_uid: userRecord.uid,
-        first_name: firstName,
-        last_name: lastName,
-        email,
-        role,
-        status: 'pending'
-      })
-      .select();
-
-      // Copy to users table
-    const { error: insertError } = await supabase
-      .from('users')
-      .insert({
-      firebase_uid: app.firebase_uid,
-      name: `${app.first_name} ${app.last_name}`,
-      email: app.email,
-      role: app.role
-    });
-
-    res.status(201).json({
-      message: 'Application submitted',
-      applicationId: data[0].id,
-      firebaseUid: userRecord.uid
-    });
-  } catch (error) {
-    console.error('Request error:', error);
-    res.status(500).json({ error: error.message });
+  if (!firstName || !lastName || !email || !role) {
+    return res.status(400).json({ error: 'Missing required fields' });
   }
+
+  const { data, error } = await supabase
+    .from('applications')
+    .insert({ first_name: firstName, last_name: lastName, email, role, status: 'pending' })
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.status(201).json({ application: data });
 });
 
-// PATCH /applications/:id/approve - Approve application
 app.patch('/applications/:id/approve', async (req, res) => {
-  try {
-    const { id } = req.params;
+  const { id } = req.params;
 
-    // Get the application
-    const { data: app, error: fetchError } = await supabase
-      .from('applications')
-      .select('*')
-      .eq('id', id)
-      .single();
+  const { data: application, error: fetchError } = await supabase
+    .from('applications')
+    .select('*')
+    .eq('id', id)
+    .single();
 
-    if (fetchError || !app) {
-      return res.status(404).json({ error: 'Application not found' });
-    }
-
-    // Update status to approved
-    const { error: updateError } = await supabase
-      .from('applications')
-      .update({ status: 'approved' })
-      .eq('id', id);
-
-    if (updateError) {
-      return res.status(500).json({ error: updateError.message });
-    }
-
-    // Copy to users table
-    const { error: insertError } = await supabase
-      .from('users')
-      .insert({
-        firebase_uid: app.firebase_uid,
-        name: `${app.first_name} ${app.last_name}`,
-        email: app.email,
-        role: app.role
-      });
-
-    if (insertError) {
-      return res.status(500).json({ error: insertError.message });
-    }
-
-    res.json({ message: 'Application approved' });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+  if (fetchError) {
+    console.error(fetchError);
+    return res.status(404).json({ error: 'Application not found' });
   }
+
+  const { error: updateError } = await supabase
+    .from('applications')
+    .update({ status: 'approved' })
+    .eq('id', id);
+
+  if (updateError) {
+    console.error(updateError);
+    return res.status(500).json({ error: updateError.message });
+  }
+
+  const { error: insertError } = await supabase
+    .from('users')
+    .insert({
+      name: `${application.first_name} ${application.last_name}`,
+      email: application.email,
+      role: application.role,
+    });
+
+  if (insertError) {
+    console.error(insertError);
+    return res.status(500).json({ error: insertError.message });
+  }
+
+  res.json({ message: 'Application approved' });
 });
 
-// PATCH /applications/:id/reject - Reject application
 app.patch('/applications/:id/reject', async (req, res) => {
-  try {
-    const { id } = req.params;
+  const { id } = req.params;
 
-    // Get the application
-    const { data: app, error: fetchError } = await supabase
-      .from('applications')
-      .select('*')
-      .eq('id', id)
-      .single();
+  const { error } = await supabase
+    .from('applications')
+    .update({ status: 'rejected' })
+    .eq('id', id);
 
-    if (fetchError || !app) {
-      return res.status(404).json({ error: 'Application not found' });
-    }
-
-    // Update status to rejected
-    const { error: updateError } = await supabase
-      .from('applications')
-      .update({ status: 'rejected' })
-      .eq('id', id);
-
-    if (updateError) {
-      return res.status(500).json({ error: updateError.message });
-    }
-
-    // Delete Firebase account
-    try {
-      await auth.deleteUser(app.firebase_uid);
-    } catch (deleteError) {
-      console.error('Failed to delete Firebase user:', deleteError);
-    }
-
-    res.json({ message: 'Application rejected' });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
   }
-});
 
-// GET /applications - Get pending applications (mock data for now)
-app.get('/applications', (req, res) => {
-  const applications = [
-    { id: 1, name: 'Ana Dela Cruz', role: 'INTTO', email: 'ana.delacruz@example.com', dateApplied: '2026-06-30', status: 'pending' },
-    { id: 2, name: 'Lorenzo Rivera', role: 'RSO', email: 'lorenzo.rivera@example.com', dateApplied: '2026-06-29', status: 'pending' },
-    { id: 3, name: 'Bea Mendoza', role: 'INTTO', email: 'bea.mendoza@example.com', dateApplied: '2026-06-28', status: 'pending' },
-  ];
-  res.json(applications.filter(a => a.status === 'pending'));
+  res.json({ message: 'Application rejected' });
 });
 
 // Logs

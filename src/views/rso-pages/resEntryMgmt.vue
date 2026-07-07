@@ -9,7 +9,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
 } from '@heroicons/vue/24/outline';
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, onMounted } from 'vue';
 import ReusableTable from '../../components/tables/ReusableTable.vue';
 import FilterControls from '../../components/filters/FilterControls.vue';
 import SortControls from '../../components/filters/SortControls.vue';
@@ -27,6 +27,7 @@ const isModalOpen = ref(false);
 const modalMode = ref('add');
 const selectedEntry = ref(null);
 const hasUnsavedChanges = ref(false);
+const loadError = ref('');
 // Confirmation modal
 const confirmModalOpen = ref(false);
 const confirmMessage = ref('');
@@ -45,7 +46,18 @@ const createEmptyEntry = () => ({
 });
 
 const formEntry = ref(createEmptyEntry());
-const researchEntries = ref(getResearchEntries());
+const researchEntries = ref([]);
+
+async function loadEntries() {
+  loadError.value = '';
+  try {
+    researchEntries.value = await getResearchEntries();
+  } catch (err) {
+    loadError.value = 'Failed to load research entries. ' + err.message;
+  }
+}
+
+onMounted(loadEntries);
 
 const sortOptions = [
   { value: 'newest', label: 'Newest to Oldest' },
@@ -127,11 +139,11 @@ function openConfirm(message, action) {
   confirmModalOpen.value = true;
 }
 
-function handleConfirmYes() {
+async function handleConfirmYes() {
   const action = confirmAction.value;
   confirmModalOpen.value = false;
   confirmAction.value = null;
-  if (action) action();
+  if (action) await action();
 }
 
 function handleConfirmNo() {
@@ -278,22 +290,24 @@ function saveEntry() {
 
   openConfirm(
     modalMode.value === 'add' ? 'Add this research entry?' : 'Save changes to this entry?',
-    () => {
+    async () => {
       if (modalMode.value === 'add') {
-        createResearchEntry(payload);
+        const created = await createResearchEntry(payload);
+        researchEntries.value = [created, ...researchEntries.value];
       } else if (selectedEntry.value) {
-        updateResearchEntry(selectedEntry.value.id, payload);
+        const updated = await updateResearchEntry(selectedEntry.value.id, payload);
+        researchEntries.value = researchEntries.value.map((entry) => (entry.id === updated.id ? updated : entry));
       }
-      researchEntries.value = getResearchEntries();
       closeModal();
     }
   );
 }
 
-function deleteEntry() {
+async function deleteEntry() {
   if (!selectedEntry.value) return;
-  deleteResearchEntry(selectedEntry.value.id);
-  researchEntries.value = getResearchEntries();
+  const id = selectedEntry.value.id;
+  await deleteResearchEntry(id);
+  researchEntries.value = researchEntries.value.filter((entry) => entry.id !== id);
   closeModal();
 }
 
@@ -317,6 +331,10 @@ function handleTableAction({ action, row }) {
 
 <template>
   <div class="EntryPage flex flex-col gap-4">
+    <div v-if="loadError" class="bg-red-50 border border-red-200 text-red-700 text-xs sm:text-sm px-4 py-3 rounded-xl">
+      {{ loadError }}
+    </div>
+
     <div class="flex flex-col gap-4 md:flex-row">
       <div class="flex flex-1 items-center gap-1 rounded-full bg-gray-100 p-1 ring-1 ring-gray-300" :class="isFocused ? 'ring-2 ring-[#263e30]' : 'hover:ring-2 hover:ring-gray-500'">
         <button class="flex h-8 w-8 items-center justify-center rounded-full hover:bg-gray-300">
