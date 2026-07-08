@@ -5,6 +5,7 @@ import AppLayout from '../layouts/AppLayout.vue'
 import SuperAdminView from '../views/SuperAdminView.vue'
 import RSOView from '../views/RSOView.vue'
 import INTTOView from '../views/INTTOView.vue'
+import superAdminLogin from '../views/SuperAdminLogin.vue'
 import SuperAdminDashboard from '../views/super-admin-pages/SuperAdminDashboard.vue'
 import userMgmt from '../views/super-admin-pages/userMgmt.vue'
 import logs from '../views/super-admin-pages/logs.vue'
@@ -16,15 +17,22 @@ import startupMgmt from '../views/intto-pages/startupManagement.vue'
 import IPMgmt from '../views/intto-pages/ipManagement.vue'
 
 const routes = [
-    { path: '/', redirect: '/super-admin/dashboard'},
-    { path: '/login', name: 'Login', component: LoginView}, // login route
-    { path: '/register', name: 'Register', component: RegisterView }, // register route
+    { path: '/', redirect: '/login'},
+    { path: '/login', name: 'Login', component: LoginView},
+    { path: '/register', name: 'Register', component: RegisterView },
+
+    // Must be registered before the AppLayout block below, since that block
+    // also nests a route at the literal path 'super-admin'. Vue Router matches
+    // in insertion order, so this one wins for the exact bare path while
+    // '/super-admin/dashboard' etc. still resolve through their own distinct
+    // full path via the nested children.
+    { path: '/super-admin', name: 'SuperAdminLogin', component: superAdminLogin },
 
     { path: '/',
-        component: AppLayout, 
+        component: AppLayout,
         children: [
             {
-                path: 'super-admin', // Super-admin routes
+                path: 'super-admin',
                 component: SuperAdminView,
                 children: [
                     {path: 'dashboard', name: 'SuperAdminDashboard', component: SuperAdminDashboard},
@@ -34,7 +42,7 @@ const routes = [
                 ]
             },
             {
-                path: 'rso-admin', // rso admin routes
+                path: 'rso-admin',
                 component: RSOView,
                 children: [
                     {path: 'dashboard', name: 'RSODashboard', component: RSODashboard},
@@ -42,7 +50,7 @@ const routes = [
                 ]
             },
             {
-                path: 'intto-admin', // intto admin routes
+                path: 'intto-admin',
                 component: INTTOView,
                 children: [
                     {path: 'dashboard', name: 'INTTODashboard', component: inttoDashboard},
@@ -58,6 +66,40 @@ const routes = [
 const router = createRouter({
     history: createWebHistory(),
     routes,
+})
+
+import { useAuthStore } from '../stores/auth'
+
+router.beforeEach(async (to, from, next) => {
+  const authStore = useAuthStore()
+
+  const isSuperAdminSection = to.path.startsWith('/super-admin/')
+  const isRsoSection = to.path.startsWith('/rso-admin/')
+  const isInttoSection = to.path.startsWith('/intto-admin/')
+
+  if (!(isSuperAdminSection || isRsoSection || isInttoSection)) {
+    next()
+    return
+  }
+
+  await authStore.waitForAuthReady()
+
+  if (!authStore.isLoggedIn) {
+    next(isSuperAdminSection ? '/super-admin' : '/login')
+    return
+  }
+
+  if (isSuperAdminSection && authStore.userRole !== 'superadmin') {
+    next('/super-admin')
+    return
+  }
+
+  if ((isRsoSection || isInttoSection) && !['rso', 'intto'].includes(authStore.userRole)) {
+    next('/login')
+    return
+  }
+
+  next()
 })
 
 export default router
