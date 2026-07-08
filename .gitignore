@@ -31,6 +31,4 @@ firebase-service-account.json
 *firebase-adminsdk*.json
 *service-account*.json
 
-backend_scripts/firebase-service-account.json
-backend_scripts/*firebase-adminsdk*.json
-backend_scripts/*service-account*.json
+
