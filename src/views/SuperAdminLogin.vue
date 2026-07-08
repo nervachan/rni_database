@@ -2,21 +2,25 @@
 
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import {EyeIcon, EyeSlashIcon} from '@heroicons/vue/24/outline';
+import { EyeIcon, EyeSlashIcon } from '@heroicons/vue/24/outline';
+import { useAuthStore } from '../stores/auth';
 
 const router = useRouter();
+const authStore = useAuthStore();
 const email = ref('');
-const emailError = ref ('');
+const emailError = ref('');
 const password = ref('');
 const passwordError = ref('');
+const loginError = ref('');
+const isSubmitting = ref(false);
 
-function handleLogin() {
+async function handleLogin() {
     if (email.value.trim() === '') {
         emailError.value = 'Email must not be empty';
         return;
     }
         emailError.value = '';
-    
+
     if (!email.value.includes('@')) {
         emailError.value = 'Invalid Email';
         return;
@@ -28,10 +32,26 @@ function handleLogin() {
         return;
     }
         passwordError.value = '';
-}
 
-function goToRegister() {
-    router.push('/register');
+    loginError.value = '';
+    isSubmitting.value = true;
+
+    try {
+        const role = await authStore.login(email.value, password.value);
+
+        if (role !== 'superadmin') {
+            loginError.value = 'This account does not have super admin access.';
+            await authStore.logout();
+            return;
+        }
+
+        router.push('/super-admin/dashboard');
+    } catch (err) {
+        loginError.value = 'Invalid email or password.';
+        password.value = '';
+    } finally {
+        isSubmitting.value = false;
+    }
 }
 
 const showPassword = ref(false);
@@ -39,13 +59,14 @@ const showPassword = ref(false);
 </script>
 
 <template>
-    <div class="LoginPage bg-gradient-to-b from-[#203429] to-[#ffffff] flex items-center justify-center min-h-screen">
+    <div class="SuperAdminLoginPage bg-gradient-to-b from-[#203429] to-[#ffffff] flex items-center justify-center min-h-screen">
 
         <div class="LoginCard gap-4 bg-gradient-to-b from-[#9abba4] to-[#ffffff] flex flex-col items-center justify-center rounded-lg shadow-xl p-5 sm:p-8 w-full max-w-[400px] mx-4">
-            
+
             <div class="LogoAndName flex flex-col items-center gap-4">
                 <img class="DatabaseLogo h-24 sm:h-[150px]" src="../assets/UC_Official_Seal.png">
-                <h2 class="text-xl font-bold text-[#263e30] text-center">INTTO and RSO Database <br>(Super Admin Login)</h2>
+                <h2 class="text-xl font-bold text-[#263e30] text-center">Super Admin Access</h2>
+                <p class="text-sm text-[#2e4e3c] text-center -mt-2">Restricted to authorized administrators only.</p>
             </div>
 
             <div class="InputFields gap-4 flex flex-col w-full">
@@ -53,10 +74,10 @@ const showPassword = ref(false);
                 <p v-if="emailError" class="text-red-500 text-sm">{{ emailError }}</p>
 
                 <div class="relative w-full">
-                    <input 
+                    <input
                         v-model="password"
-                        :type="showPassword ? 'text' : 'password'" 
-                        placeholder="Password" 
+                        :type="showPassword ? 'text' : 'password'"
+                        placeholder="Password"
                         class="bg-gray-100 rounded-md shadow-md p-2 w-full hover:outline-none hover:ring-2 hover:ring-[#263e30] focus:outline-none focus:ring-2 focus:ring-[#263e30]"
                     >
                     <p v-if="passwordError" class="text-sm text-red-500">{{ passwordError }}</p>
@@ -72,9 +93,12 @@ const showPassword = ref(false);
                 </div>
             </div>
 
+            <p v-if="loginError" class="text-red-500 text-sm text-center">{{ loginError }}</p>
+
             <div class="Buttons flex-row gap-4 flex">
-                <button class="rounded-md bg-[#2e4e3c] text-white p-2 w-28 hover:opacity-80" @click="handleLogin">Login</button>
-                <button class="rounded-md bg-[#2e4e3c] text-white p-2 w-28 hover:opacity-80" @click="goToRegister">Sign Up</button>
+                <button class="rounded-md bg-[#2e4e3c] text-white p-2 w-28 hover:opacity-80 disabled:opacity-50" :disabled="isSubmitting" @click="handleLogin">
+                    {{ isSubmitting ? 'Logging in...' : 'Login' }}
+                </button>
             </div>
 
         </div>
