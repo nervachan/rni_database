@@ -1,9 +1,5 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL
-
-if (!API_BASE) {
-  throw new Error('VITE_API_BASE_URL is not set. Add it to your .env file.')
-}
-
+const API_BASE = '/api'
+// Convert database row to client-friendly cohort object
 function toClientCohort(row, startupCountByCohortId) {
   return {
     id:    row.id,
@@ -11,6 +7,7 @@ function toClientCohort(row, startupCountByCohortId) {
     value: startupCountByCohortId.get(row.id) ?? 0,
   }
 }
+  
 
 function toClientStartup(row) {
   return {
@@ -23,11 +20,15 @@ function toClientStartup(row) {
   }
 }
 
+
+// Convert client payload to database payload for creating/updating a cohort
 function toDbCohortPayload(payload) {
   const dbPayload = {}
   if (payload.name !== undefined) dbPayload.cohort_name = payload.name
   return dbPayload
 }
+
+
 
 function toDbStartupPayload(payload) {
   const dbPayload = {}
@@ -39,6 +40,7 @@ function toDbStartupPayload(payload) {
   return dbPayload
 }
 
+// Get the list of cohorts with the count of startups in each cohort
 export async function getCohorts() {
   const [cohortsRes, startupsRes] = await Promise.all([
     fetch(`${API_BASE}/cohorts`),
@@ -58,6 +60,8 @@ export async function getCohorts() {
   return cohorts.map(row => toClientCohort(row, startupCountByCohortId))
 }
 
+
+
 export async function getStartups() {
   const res = await fetch(`${API_BASE}/startups`)
   if (!res.ok) throw new Error(`Failed to load startups (${res.status})`)
@@ -66,6 +70,7 @@ export async function getStartups() {
   return startups.map(toClientStartup)
 }
 
+// Get the list of unique genres from startups
 export async function getGenres() {
   const startups = await getStartups()
 
@@ -76,7 +81,7 @@ export async function getGenres() {
 
   return Object.entries(genreCounts).map(([label, value]) => ({ label, value }))
 }
-
+// Create a new cohort
 export async function createCohort(payload) {
   const res = await fetch(`${API_BASE}/cohorts`, {
     method: 'POST',
@@ -89,6 +94,8 @@ export async function createCohort(payload) {
   return { id: cohort.id, name: cohort.cohort_name, value: 0 }
 }
 
+
+// Create a new startup
 export async function createStartup(payload) {
   const res = await fetch(`${API_BASE}/startups`, {
     method: 'POST',
@@ -101,6 +108,8 @@ export async function createStartup(payload) {
   return toClientStartup(startup)
 }
 
+
+// Update a startup by ID
 export async function updateStartup(id, payload) {
   const res = await fetch(`${API_BASE}/startups/${id}`, {
     method: 'PATCH',
@@ -112,6 +121,8 @@ export async function updateStartup(id, payload) {
 
   return toClientStartup(startup)
 }
+
+// Delete a startup by ID
 
 export async function deleteStartup(id) {
   const res = await fetch(`${API_BASE}/startups/${id}`, { method: 'DELETE' })

@@ -1,8 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL
-
-if (!API_BASE) {
-  throw new Error('VITE_API_BASE_URL is not set. Add it to your .env file.')
-}
+const API_BASE = '/api'
 
 function toClientRecord(row) {
   return {

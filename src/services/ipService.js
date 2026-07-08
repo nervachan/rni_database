@@ -1,37 +1,4 @@
-// import { ipRecords } from '../data/ip.js'
-
-// let records = ipRecords.map(record => ({ ...record }))
-
-// export async function getIpRecords() {
-//   return records.map(record => ({ ...record }))
-// }
-
-// export async function createIpRecord(payload) {
-//   const newRecord = {
-//     id: Date.now(),
-//     ...payload,
-//   }
-//   records = [...records, newRecord]
-//   return { ...newRecord }
-// }
-
-// export async function updateIpRecord(id, payload) {
-//   records = records.map(record => (record.id === id ? { ...record, ...payload } : record))
-//   return records.find(record => record.id === id)
-// }
-
-// export async function deleteIpRecord(id) {
-//   records = records.filter(record => record.id !== id)
-//   return true
-// }
-
-//===========================================^Left Over COde^================================
-
-const API_BASE = import.meta.env.VITE_API_BASE_URL
-
-if (!API_BASE) {
-  throw new Error('VITE_API_BASE_URL is not set. Add it to your .env file.')
-}
+const API_BASE = '/api'
 // This file is a service layer for the IP management feature.
 //  It handles fetching, creating, updating, and deleting IP records from the backend API. 
 // It also manages the mapping between classification IDs and names, which are stored in a separate classifications table in the database.
@@ -49,6 +16,10 @@ async function getClassificationsMap() {
     byName: new Map(classifications.map(c => [c.classification_name, c.id])),
   }
   return classificationsCache
+}
+
+export function invalidateClassificationsCache() {
+  classificationsCache = null
 }
 
 function toClientRecord(row, classificationsById) {
