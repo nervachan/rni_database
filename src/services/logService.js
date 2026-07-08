@@ -1,4 +1,4 @@
-const initialLogs = [
+const initialLogs = [ //Mock data, to be cleaned later
   {
     id: 1,
     timestamp: '2026-06-30T14:30:00',
@@ -55,6 +55,7 @@ const initialLogs = [
   },
 ];
 
+//log functions
 let logs = initialLogs.map((log) => ({ ...log }));
 
 export function getLogs() {

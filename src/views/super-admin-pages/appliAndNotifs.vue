@@ -1,4 +1,5 @@
 <script setup>
+
 import { CheckIcon, XMarkIcon } from '@heroicons/vue/24/outline';
 import { computed, ref } from 'vue';
 import ReusableTable from '../../components/tables/ReusableTable.vue';
@@ -96,6 +97,7 @@ function handleApplicationAction({ action, row }) {
         @action="handleApplicationAction"
       />
 
+      <!--Table contents if no pending applications-->
       <div v-else class="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-6 text-center text-sm text-gray-500">
         No pending applications at this time.
       </div>
@@ -135,4 +137,5 @@ function handleApplicationAction({ action, row }) {
 </template>
 
 <style scoped>
+
 </style>

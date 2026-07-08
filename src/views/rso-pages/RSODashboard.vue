@@ -1,23 +1,40 @@
 <script setup>
 
 import { BookOpenIcon , CalendarIcon } from '@heroicons/vue/24/outline';
-import { computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { getResearchEntries } from '../../services/researchEntryService';
 
-const researchEntries = getResearchEntries();
-const totalResearch = computed(() => researchEntries.length);
+const researchEntries = ref([]);
+const loadError = ref('');
+const isLoading = ref(true);
+
+async function loadData() {
+  isLoading.value = true;
+  loadError.value = '';
+  try {
+    researchEntries.value = await getResearchEntries();
+  } catch (err) {
+    loadError.value = 'Failed to load research entries. ' + err.message;
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+onMounted(loadData);
+
+const totalResearch = computed(() => researchEntries.value.length);
 const avgResearchDuration = computed(() => {
-  if (!researchEntries.length) return 0;
-  const totalDays = researchEntries.reduce((sum, entry) => {
+  if (!researchEntries.value.length) return 0;
+  const totalDays = researchEntries.value.reduce((sum, entry) => {
     if (!entry.startDate || !entry.endDate) return sum;
     const start = new Date(entry.startDate);
     const end = new Date(entry.endDate);
     return sum + Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)));
   }, 0);
-  return (totalDays / researchEntries.length).toFixed(1);
+  return (totalDays / researchEntries.value.length).toFixed(1);
 });
 
-const recentEntries = computed(() => researchEntries.slice(0, 5).map((entry) => ({
+const recentEntries = computed(() => researchEntries.value.slice(0, 5).map((entry) => ({
   id: entry.id,
   title: entry.title,
   authors: entry.coAuthors && entry.coAuthors !== 'N/A' ? `${entry.authors}, ${entry.coAuthors}` : entry.authors,
@@ -28,9 +45,21 @@ const recentEntries = computed(() => researchEntries.slice(0, 5).map((entry) => 
 
 <template>
 
-    <div class="dashPage flex flex-col">
+    <div class="dashPage flex flex-col gap-4">
+
+        <div v-if="loadError" class="bg-red-50 border border-red-200 text-red-700 text-xs sm:text-sm px-4 py-3 rounded-xl">
+          {{ loadError }}
+        </div>
+
+        <div v-if="isLoading" class="flex items-center justify-center py-16">
+          <svg class="h-6 w-6 animate-spin text-[#263e30]" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+          </svg>
+        </div>
+
         <!--2 Stat Cards-->
-        <div class="statCards grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div v-else class="statCards grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="totalUsers flex flex-col bg-[#ffffff] rounded-lg p-3 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] gap-1">
                 <span class="w-9 h-9 flex flex-col items-center justify-center rounded-2xl bg-blue-100"><BookOpenIcon class="w-6 h-6 text-blue-500"/></span>
                 <p>Total Research Entries</p>
@@ -46,7 +75,7 @@ const recentEntries = computed(() => researchEntries.slice(0, 5).map((entry) => 
             <div class="RecEntriesTable md:col-span-2">
                 <div class="mb-3 flex items-center justify-between">
                     <h2 class="text-lg font-semibold text-gray-800">Recent Entries</h2>
-                    <RouterLink to="/app/rso-admin/research-entry-management" class="rounded-md ring-1 ring-gray-400 px-2 py-1 text-xs font-medium text-black transition hover:bg-gray-300">See All</RouterLink>
+                    <RouterLink to="/rso-admin/research-entry-management" class="rounded-md ring-1 ring-gray-400 px-2 py-1 text-xs font-medium text-black transition hover:bg-gray-300">See All</RouterLink>
                 </div>
 
                 <div class="overflow-x-auto rounded-lg bg-white p-3 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]">

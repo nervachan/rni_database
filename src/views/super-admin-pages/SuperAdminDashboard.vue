@@ -40,7 +40,7 @@ const recentLogs = [
             <div class="totalPending flex flex-col bg-[#ffffff] rounded-lg p-3 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] gap-1">
                 <div class="flex items-center justify-between">
                     <span class="w-9 h-9 flex flex-col items-center justify-center rounded-2xl bg-red-100"><BellIcon class="w-6 h-6 text-red-500" /></span>
-                    <RouterLink :to="'/app/super-admin/applications-and-notifications'" class="text-xs text-black font-medium rounded-md ring-1 ring-gray-400 p-1 hover:bg-gray-300">See All</RouterLink>
+                    <RouterLink :to="'/super-admin/applications-and-notifications'" class="text-xs text-black font-medium rounded-md ring-1 ring-gray-400 p-1 hover:bg-gray-300">See All</RouterLink>
                 </div>
                 <p>Applications</p>
                 <h1>{{ totalPending }}</h1>
@@ -51,7 +51,7 @@ const recentLogs = [
         <div class="logPrevTable">
             <div class="mb-3 flex items-center justify-between">
                 <h2 class="text-lg font-semibold text-gray-800">Recent Logs</h2>
-                <RouterLink to="/app/super-admin/logs" class="rounded-md ring-1 ring-gray-400 px-2 py-1 text-xs font-medium text-black transition hover:bg-gray-300">See All</RouterLink>
+                <RouterLink to="/super-admin/logs" class="rounded-md ring-1 ring-gray-400 px-2 py-1 text-xs font-medium text-black transition hover:bg-gray-300">See All</RouterLink>
             </div>
 
             <div class="overflow-x-auto rounded-lg bg-white p-3 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]">

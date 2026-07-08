@@ -19,46 +19,86 @@ const lastName = ref('');
 const lastNameError = ref('');
 const role = ref('');
 const roleError = ref('');
+const showSuccessModal = ref(false);
+const successMessage = ref('');
 
-function handleSignUp() {
+async function handleSignUp() {
     if (firstName.value.trim() === "") {
         firstNameError.value = 'First name must not be empty';
         return;
     }
-        firstNameError.value = '';
+    firstNameError.value = '';
 
     if (lastName.value.trim() === "") {
         lastNameError.value = 'Last name must not be empty'
         return;
     }
-        lastNameError.value = '';
+    lastNameError.value = '';
     
     if (!email.value.includes('@')) {
         emailError.value = 'Invalid Email';
         return;
     }
-        emailError.value = '';
+    emailError.value = '';
     
     if (password.value.length < 8) {
         passwordError.value = 'Passwords must contain at least 8 characters'
         return;
     }
-        passwordError.value = '';    
+    passwordError.value = '';    
     
     if (password.value !== confirmPassword.value) {
         passwordError.value = 'Passwords do not match';
         return;
-
     }
-        passwordError.value = '';
+    passwordError.value = '';
 
     if (role.value.trim() === '') {
         roleError.value = 'Please select a role'
         return;
     }
-        roleError.value = '';
+    roleError.value = '';
 
-} 
+    // Call backend
+        try {
+        const response = await fetch('/api/applications', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email: email.value,
+                password: password.value,
+                firstName: firstName.value,
+                lastName: lastName.value,
+                role: role.value
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            passwordError.value = data.error || 'Registration failed';
+            return;
+        }
+
+        successMessage.value = `Application submitted!`;
+        showSuccessModal.value = true;
+        
+        // Clear form
+        firstName.value = '';
+        lastName.value = '';
+        email.value = '';
+        password.value = '';
+        confirmPassword.value = '';
+        role.value = '';
+    } catch (error) {
+        passwordError.value = error.message;
+    }
+}
+
+function closeModal() {
+    showSuccessModal.value = false;
+    router.push('/login');
+}
 
 function goBack() {
     router.push('/login');
@@ -128,14 +168,25 @@ function goBack() {
                 <div class="BottomRow flex flex-row gap-2 w-full">
                     <select v-model="role" class="flex-1 bg-gray-100 drop-shadow-md rounded-md p-2 w-full hover:outline-none hover:ring-2 hover:ring-[#263e30] focus:outline-none focus:ring-2 focus:ring-[#263e30]">
                         <option value="" disabled selected>Select role</option>
-                        <option value="intto">INTTO</option>
-                        <option value ="rso">RSO</option>
+                        <option value="INTTO">INTTO</option>
+                        <option value ="RSO">RSO</option>
                     </select>
                     <button @click="handleSignUp" class="fixed-width bg-[#2e4e3c] text-white rounded-md p-2 hover:outline-none hover:opacity-80">Sign Up</button>
                 </div>
                 <p v-if="roleError" class="text-sm text-red-500">{{ roleError }}</p>
             </div>
 
+        </div>
+
+        
+
+    </div>
+
+    <div v-if="showSuccessModal" class="fixed inset-0 bg-black/50 flex items-center justify-center">
+        <div class="bg-white rounded-lg p-6 max-w-sm">
+            <h3 class="text-lg font-bold text-green-600 mb-2">Success!</h3>
+            <p class="text-gray-700 mb-4">{{ successMessage }}</p>
+            <button @click="closeModal" class="bg-[#2e4e3c] text-white rounded-md px-4 py-2 hover:opacity-80">Continue to Login</button>
         </div>
     </div>
 

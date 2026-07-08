@@ -1,4 +1,4 @@
-const initialUsers = [
+const initialUsers = [ //mock data, to be cleaned later
   {
     id: 1,
     name: 'Maria Santos',
@@ -49,6 +49,7 @@ const initialUsers = [
   },
 ];
 
+//get and update functions
 let users = initialUsers.map((user) => ({ ...user }));
 
 export function getUsers() {
