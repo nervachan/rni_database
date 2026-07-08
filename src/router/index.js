@@ -17,7 +17,7 @@ import startupMgmt from '../views/intto-pages/startupManagement.vue'
 import IPMgmt from '../views/intto-pages/ipManagement.vue'
 
 const routes = [
-    { path: '/', redirect: '/super-admin/dashboard'},
+    { path: '/', redirect: '/login'},
     { path: '/login', name: 'Login', component: LoginView},
     { path: '/register', name: 'Register', component: RegisterView },
 
@@ -66,6 +66,40 @@ const routes = [
 const router = createRouter({
     history: createWebHistory(),
     routes,
+})
+
+import { useAuthStore } from '../stores/auth'
+
+router.beforeEach(async (to, from, next) => {
+  const authStore = useAuthStore()
+
+  const isSuperAdminSection = to.path.startsWith('/super-admin/')
+  const isRsoSection = to.path.startsWith('/rso-admin/')
+  const isInttoSection = to.path.startsWith('/intto-admin/')
+
+  if (!(isSuperAdminSection || isRsoSection || isInttoSection)) {
+    next()
+    return
+  }
+
+  await authStore.waitForAuthReady()
+
+  if (!authStore.isLoggedIn) {
+    next(isSuperAdminSection ? '/super-admin' : '/login')
+    return
+  }
+
+  if (isSuperAdminSection && authStore.userRole !== 'superadmin') {
+    next('/super-admin')
+    return
+  }
+
+  if ((isRsoSection || isInttoSection) && !['rso', 'intto'].includes(authStore.userRole)) {
+    next('/login')
+    return
+  }
+
+  next()
 })
 
 export default router

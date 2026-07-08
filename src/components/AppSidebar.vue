@@ -1,10 +1,12 @@
 <script setup>
 
 import { ref, computed } from 'vue'
-import { ArrowLeftStartOnRectangleIcon, Bars3Icon } from '@heroicons/vue/24/solid' //Sidebar Icons
-import { HomeIcon, BookOpenIcon } from '@heroicons/vue/24/outline' //RSO Icons
-import { LightBulbIcon, ShieldCheckIcon } from '@heroicons/vue/24/outline'//INTTO Icons
-import { UserIcon, CircleStackIcon, BellIcon } from '@heroicons/vue/24/outline' // Super Admin Icons
+import { useRouter } from 'vue-router'
+import { ArrowLeftStartOnRectangleIcon, Bars3Icon } from '@heroicons/vue/24/solid'
+import { HomeIcon, BookOpenIcon } from '@heroicons/vue/24/outline'
+import { LightBulbIcon, ShieldCheckIcon } from '@heroicons/vue/24/outline'
+import { UserIcon, CircleStackIcon, BellIcon } from '@heroicons/vue/24/outline'
+import { useAuthStore } from '../stores/auth'
 
 const props = defineProps({
     role: {
@@ -12,6 +14,9 @@ const props = defineProps({
         required: true
     }
 })
+
+const router = useRouter()
+const authStore = useAuthStore()
 
 const navItems = {
     'RSO Admin': [
@@ -40,7 +45,13 @@ const navItemsForRole = computed(() => {
 
 function closeMobileMenu() {
     isMobileOpen.value = false;
-} 
+}
+
+async function handleLogout() {
+    const wasSuperAdmin = authStore.userRole === 'superadmin'
+    await authStore.logout()
+    router.push(wasSuperAdmin ? '/super-admin' : '/login')
+}
 
 </script>
 
@@ -48,7 +59,7 @@ function closeMobileMenu() {
     <div class="w-full md:w-auto md:h-screen md:flex-shrink-0">
     <!--  Mobile View NavBar -->
     <div class="Mobile-NavBar md:hidden w-screen max-w-full h-[75px] bg-[#263e30] relative flex items-center justify-between p-4">
-        <button class="Logout-Button text-white w-8 h-8 hover:text-red-500 hover:bg-white rounded-sm flex flex-row justify-center items-center transition-all duration-300"><ArrowLeftStartOnRectangleIcon class="h-5 w-5" /></button>
+        <button class="Logout-Button text-white w-8 h-8 hover:text-red-500 hover:bg-white rounded-sm flex flex-row justify-center items-center transition-all duration-300" @click="handleLogout"><ArrowLeftStartOnRectangleIcon class="h-5 w-5" /></button>
         <span class="absolute left-1/2 -translate-x-1/2 text-white">{{ props.role }}</span>
         <button :class="['Collapse-Button text-white hover:text-[#263e30] hover:bg-white rounded-sm w-8 h-8 flex flex-row justify-center items-center transition-transform duration-300', isMobileOpen ? 'open' : '']" @click="isMobileOpen = !isMobileOpen"><Bars3Icon class="h-5 w-5"/></button>
     </div>
@@ -126,7 +137,7 @@ function closeMobileMenu() {
             >
                 {{ props.role }}
             </span>
-            <button class="Logout-Button w-8 h-8 hover:text-red-500 hover:bg-white rounded-sm flex flex-row justify-center items-center transition-all duration-300"><ArrowLeftStartOnRectangleIcon class="h-5 w-5" /></button>
+            <button class="Logout-Button w-8 h-8 hover:text-red-500 hover:bg-white rounded-sm flex flex-row justify-center items-center transition-all duration-300" @click="handleLogout"><ArrowLeftStartOnRectangleIcon class="h-5 w-5" /></button>
         </div>
 
     </div>

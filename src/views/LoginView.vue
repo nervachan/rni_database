@@ -9,6 +9,7 @@ const email = ref('');
 const emailError = ref ('');
 const password = ref('');
 const passwordError = ref('');
+const loginRole = ref('RSO');
 
 function handleLogin() {
     if (email.value.trim() === '') {
@@ -46,6 +47,29 @@ const showPassword = ref(false);
             <div class="LogoAndName flex flex-col items-center gap-4">
                 <img class="DatabaseLogo h-24 sm:h-[150px]" src="../assets/UC_Official_Seal.png">
                 <h2 class="text-xl font-bold text-[#263e30] text-center">INTTO and RSO Database</h2>
+            </div>
+
+            <div class="RoleToggle relative flex w-full rounded-full bg-gray-100 p-1 shadow-md">
+                <span
+                    class="absolute top-1 bottom-1 left-1 rounded-full bg-[#263e30] transition-transform duration-200 ease-out"
+                    :style="{ width: 'calc(50% - 0.25rem)', transform: loginRole === 'INTTO' ? 'translateX(100%)' : 'translateX(0)' }"
+                ></span>
+                <button
+                    type="button"
+                    class="relative z-10 flex-1 rounded-full py-2 text-sm font-medium transition-colors"
+                    :class="loginRole === 'RSO' ? 'text-white' : 'text-[#263e30]'"
+                    @click="loginRole = 'RSO'"
+                >
+                    RSO
+                </button>
+                <button
+                    type="button"
+                    class="relative z-10 flex-1 rounded-full py-2 text-sm font-medium transition-colors"
+                    :class="loginRole === 'INTTO' ? 'text-white' : 'text-[#263e30]'"
+                    @click="loginRole = 'INTTO'"
+                >
+                    INTTO
+                </button>
             </div>
 
             <div class="InputFields gap-4 flex flex-col w-full">
