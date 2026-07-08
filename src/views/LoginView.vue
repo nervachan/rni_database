@@ -51,8 +51,8 @@ const showPassword = ref(false);
 
             <div class="RoleToggle relative flex w-full rounded-full bg-gray-100 p-1 shadow-md">
                 <span
-                    class="absolute top-1 bottom-1 left-1 rounded-full bg-[#263e30] transition-transform duration-200 ease-out"
-                    :style="{ width: 'calc(50% - 0.25rem)', transform: loginRole === 'INTTO' ? 'translateX(100%)' : 'translateX(0)' }"
+                    class="absolute inset-y-1 w-[calc(50%-0.25rem)] rounded-full bg-[#263e30] transition-transform duration-200 ease-out"
+                    :class="loginRole === 'INTTO' ? 'translate-x-[calc(100%+0.5rem)]' : 'translate-x-0'"
                 ></span>
                 <button
                     type="button"

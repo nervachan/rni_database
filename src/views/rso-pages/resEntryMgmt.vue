@@ -9,11 +9,20 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
 } from '@heroicons/vue/24/outline';
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, onMounted } from 'vue';
 import ReusableTable from '../../components/tables/ReusableTable.vue';
 import FilterControls from '../../components/filters/FilterControls.vue';
 import SortControls from '../../components/filters/SortControls.vue';
 import { createResearchEntry, deleteResearchEntry, getResearchEntries, updateResearchEntry } from '../../services/researchEntryService';
+
+const TITLE_DISALLOWED = /[<>{}[\]\\|`;]/g
+const NAME_DISALLOWED = /[^a-zA-Z\u00C0-\u017F\s.,'-]/g
+const ISBN_DISALLOWED = /[^0-9Xx-]/g
+const URL_DISALLOWED = /[<>"'\s]/g
+
+function sanitize(value, pattern) {
+  return value.replace(pattern, '')
+}
 
 const searchQuery = ref('');
 const isFocused = ref(false);
@@ -27,6 +36,11 @@ const isModalOpen = ref(false);
 const modalMode = ref('add');
 const selectedEntry = ref(null);
 const hasUnsavedChanges = ref(false);
+const loadError = ref('');
+const isLoading = ref(true);
+const isSaving = ref(false);
+const isDeleting = ref(false);
+const modalError = ref('');
 // Confirmation modal
 const confirmModalOpen = ref(false);
 const confirmMessage = ref('');
@@ -45,7 +59,21 @@ const createEmptyEntry = () => ({
 });
 
 const formEntry = ref(createEmptyEntry());
-const researchEntries = ref(getResearchEntries());
+const researchEntries = ref([]);
+
+async function loadEntries() {
+  isLoading.value = true;
+  loadError.value = '';
+  try {
+    researchEntries.value = await getResearchEntries();
+  } catch (err) {
+    loadError.value = 'Failed to load research entries. ' + err.message;
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+onMounted(loadEntries);
 
 const sortOptions = [
   { value: 'newest', label: 'Newest to Oldest' },
@@ -127,11 +155,11 @@ function openConfirm(message, action) {
   confirmModalOpen.value = true;
 }
 
-function handleConfirmYes() {
+async function handleConfirmYes() {
   const action = confirmAction.value;
   confirmModalOpen.value = false;
   confirmAction.value = null;
-  if (action) action();
+  if (action) await action();
 }
 
 function handleConfirmNo() {
@@ -172,6 +200,7 @@ function openAddModal() {
   formEntry.value = createEmptyEntry();
   selectedEntry.value = null;
   hasUnsavedChanges.value = false;
+  modalError.value = '';
   isModalOpen.value = true;
 }
 
@@ -179,6 +208,7 @@ function openViewModal(entry) {
   modalMode.value = 'view';
   selectedEntry.value = entry;
   hasUnsavedChanges.value = false;
+  modalError.value = '';
   isModalOpen.value = true;
 }
 
@@ -187,6 +217,7 @@ function openEditModal(entry) {
   selectedEntry.value = entry;
   formEntry.value = { ...entry };
   hasUnsavedChanges.value = false;
+  modalError.value = '';
   isModalOpen.value = true;
 }
 
@@ -194,6 +225,7 @@ function openDeleteModal(entry) {
   modalMode.value = 'delete';
   selectedEntry.value = entry;
   hasUnsavedChanges.value = false;
+  modalError.value = '';
   isModalOpen.value = true;
 }
 
@@ -203,6 +235,7 @@ function closeModal() {
   modalMode.value = 'add';
   formEntry.value = createEmptyEntry();
   hasUnsavedChanges.value = false;
+  modalError.value = '';
 }
 
 function confirmDiscard() {
@@ -248,11 +281,13 @@ function trackFormChanges() {
 }
 
 function saveEntry() {
+  modalError.value = '';
+
   const title = formEntry.value.title.trim();
   const authors = formEntry.value.authors.trim();
 
   if (!title || !authors) {
-    window.alert('Title and Authors are required.');
+    modalError.value = 'Title and Authors are required.';
     return;
   }
 
@@ -260,7 +295,22 @@ function saveEntry() {
     const start = new Date(formEntry.value.startDate);
     const end = new Date(formEntry.value.endDate);
     if (end < start) {
-      window.alert('End Date cannot be earlier than Start Date.');
+      modalError.value = 'End Date cannot be earlier than Start Date.';
+      return;
+    }
+  }
+
+  const isbnDigits = formEntry.value.isbn.replace(/-/g, '');
+  if (isbnDigits && isbnDigits.length !== 10 && isbnDigits.length !== 13) {
+    modalError.value = 'ISBN must be 10 or 13 digits (hyphens allowed).';
+    return;
+  }
+
+  if (formEntry.value.scopusLink) {
+    try {
+      new URL(formEntry.value.scopusLink);
+    } catch {
+      modalError.value = 'Scopus Link must be a full URL, including https://.';
       return;
     }
   }
@@ -278,23 +328,39 @@ function saveEntry() {
 
   openConfirm(
     modalMode.value === 'add' ? 'Add this research entry?' : 'Save changes to this entry?',
-    () => {
-      if (modalMode.value === 'add') {
-        createResearchEntry(payload);
-      } else if (selectedEntry.value) {
-        updateResearchEntry(selectedEntry.value.id, payload);
+    async () => {
+      isSaving.value = true;
+      try {
+        if (modalMode.value === 'add') {
+          const created = await createResearchEntry(payload);
+          researchEntries.value = [created, ...researchEntries.value];
+        } else if (selectedEntry.value) {
+          const updated = await updateResearchEntry(selectedEntry.value.id, payload);
+          researchEntries.value = researchEntries.value.map((entry) => (entry.id === updated.id ? updated : entry));
+        }
+        closeModal();
+      } catch (err) {
+        modalError.value = 'Failed to save research entry. ' + err.message;
+      } finally {
+        isSaving.value = false;
       }
-      researchEntries.value = getResearchEntries();
-      closeModal();
     }
   );
 }
 
-function deleteEntry() {
+async function deleteEntry() {
   if (!selectedEntry.value) return;
-  deleteResearchEntry(selectedEntry.value.id);
-  researchEntries.value = getResearchEntries();
-  closeModal();
+  const id = selectedEntry.value.id;
+  isDeleting.value = true;
+  try {
+    await deleteResearchEntry(id);
+    researchEntries.value = researchEntries.value.filter((entry) => entry.id !== id);
+    closeModal();
+  } catch (err) {
+    modalError.value = 'Failed to delete research entry. ' + err.message;
+  } finally {
+    isDeleting.value = false;
+  }
 }
 
 function goToPage(page) {
@@ -317,6 +383,10 @@ function handleTableAction({ action, row }) {
 
 <template>
   <div class="EntryPage flex flex-col gap-4">
+    <div v-if="loadError" class="bg-red-50 border border-red-200 text-red-700 text-xs sm:text-sm px-4 py-3 rounded-xl">
+      {{ loadError }}
+    </div>
+
     <div class="flex flex-col gap-4 md:flex-row">
       <div class="flex flex-1 items-center gap-1 rounded-full bg-gray-100 p-1 ring-1 ring-gray-300" :class="isFocused ? 'ring-2 ring-[#263e30]' : 'hover:ring-2 hover:ring-gray-500'">
         <button class="flex h-8 w-8 items-center justify-center rounded-full hover:bg-gray-300">
@@ -337,7 +407,9 @@ function handleTableAction({ action, row }) {
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex flex-wrap items-center gap-2 relative">
         <div v-click-outside="closeFilterDropdown" class="relative">
+
           <FilterControls v-model="filterState" :is-open="isFilterOpen" :show-role-filter="false" :show-status-filter="false" @apply="handleFilterApply" @clear="clearFilters">
+
             <template #trigger>
               <button class="flex w-20 items-center justify-center rounded-md border border-gray-300 p-1 text-sm transition hover:bg-gray-300" @click.stop="toggleFilterDropdown">
                 Filter
@@ -361,7 +433,15 @@ function handleTableAction({ action, row }) {
       </div>
     </div>
 
+    <div v-if="isLoading" class="flex items-center justify-center py-16">
+      <svg class="h-6 w-6 animate-spin text-[#263e30]" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+      </svg>
+    </div>
+
     <ReusableTable
+      v-else
       :rows="paginatedEntries"
       :columns="tableColumns"
       :actions="tableActions"
@@ -395,6 +475,10 @@ function handleTableAction({ action, row }) {
           </button>
         </div>
 
+        <div v-if="modalError" class="mb-4 bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2 rounded-md">
+          {{ modalError }}
+        </div>
+
         <div v-if="modalMode === 'view' && selectedEntry" class="space-y-3 text-sm text-gray-700">
           <div><span class="font-semibold">Title:</span> {{ selectedEntry.title }}</div>
           <div><span class="font-semibold">Authors:</span> {{ selectedEntry.authors }}</div>
@@ -412,8 +496,12 @@ function handleTableAction({ action, row }) {
             <button class="rounded-md bg-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-300" @click="closeModal">
               Cancel
             </button>
-            <button class="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700" @click="deleteEntry">
-              Delete
+            <button class="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60 flex items-center gap-2" :disabled="isDeleting" @click="deleteEntry">
+              <svg v-if="isDeleting" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+              </svg>
+              {{ isDeleting ? 'Deleting...' : 'Delete' }}
             </button>
           </div>
         </div>
@@ -422,16 +510,16 @@ function handleTableAction({ action, row }) {
           <div class="grid gap-4 md:grid-cols-2">
             <div class="md:col-span-2">
               <label class="mb-1 block text-sm font-medium text-gray-700">Title <span class="text-red-500">*</span></label>
-              <input v-model="formEntry.title" type="text" class="w-full rounded border border-gray-300 p-2 text-sm" required />
+              <input :value="formEntry.title" @input="formEntry.title = sanitize($event.target.value, TITLE_DISALLOWED)" type="text" class="w-full rounded border border-gray-300 p-2 text-sm" required />
             </div>
             <div class="md:col-span-2">
               <label class="mb-1 block text-sm font-medium text-gray-700">Authors <span class="text-red-500">*</span></label>
-              <input v-model="formEntry.authors" type="text" class="w-full rounded border border-gray-300 p-2 text-sm" placeholder="Surname first, then given name(s)" required />
-              <p class="mt-1 text-xs text-gray-500">Write names as Last Name, First Name (for example, Santos, Maria).</p>
+              <input :value="formEntry.authors" @input="formEntry.authors = sanitize($event.target.value, NAME_DISALLOWED)" type="text" class="w-full rounded border border-gray-300 p-2 text-sm" placeholder="Surname first, then given name(s)" required />
+              <p class="mt-1 text-xs text-gray-500">Write names as Last Name, First Name (for example, Santos, Maria). Letters, spaces, commas, periods, and hyphens only.</p>
             </div>
             <div class="md:col-span-2">
               <label class="mb-1 block text-sm font-medium text-gray-700">Co-authors</label>
-              <input v-model="formEntry.coAuthors" type="text" class="w-full rounded border border-gray-300 p-2 text-sm" placeholder="Surname first, then given name(s)" />
+              <input :value="formEntry.coAuthors" @input="formEntry.coAuthors = sanitize($event.target.value, NAME_DISALLOWED)" type="text" class="w-full rounded border border-gray-300 p-2 text-sm" placeholder="Surname first, then given name(s)" />
               <p class="mt-1 text-xs text-gray-500">Use commas to separate multiple co-authors; write each as Last Name, First Name.</p>
             </div>
             <div>
@@ -444,15 +532,15 @@ function handleTableAction({ action, row }) {
             </div>
             <div>
               <label class="mb-1 block text-sm font-medium text-gray-700">ISBN</label>
-              <input v-model="formEntry.isbn" type="text" class="w-full rounded border border-gray-300 p-2 text-sm" />
+              <input :value="formEntry.isbn" @input="formEntry.isbn = sanitize($event.target.value, ISBN_DISALLOWED)" type="text" class="w-full rounded border border-gray-300 p-2 text-sm" placeholder="978-3-16-148410-0" />
             </div>
             <div>
               <label class="mb-1 block text-sm font-medium text-gray-700">Scopus Link</label>
-              <input v-model="formEntry.scopusLink" type="text" class="w-full rounded border border-gray-300 p-2 text-sm" />
+              <input :value="formEntry.scopusLink" @input="formEntry.scopusLink = sanitize($event.target.value, URL_DISALLOWED)" type="text" class="w-full rounded border border-gray-300 p-2 text-sm" placeholder="https://..." />
             </div>
             <div class="md:col-span-2">
               <label class="mb-1 block text-sm font-medium text-gray-700">Abstract / Summary</label>
-              <textarea v-model="formEntry.abstract" rows="4" class="w-full rounded border border-gray-300 p-2 text-sm" />
+              <textarea :value="formEntry.abstract" @input="formEntry.abstract = sanitize($event.target.value, TITLE_DISALLOWED)" rows="4" class="w-full rounded border border-gray-300 p-2 text-sm" />
             </div>
           </div>
 
@@ -460,8 +548,12 @@ function handleTableAction({ action, row }) {
             <button type="button" class="rounded-md bg-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-300" @click="confirmDiscard">
               Cancel
             </button>
-            <button type="button" class="rounded-md bg-[#263e30] px-4 py-2 text-sm font-medium text-white transition hover:opacity-80" @click="saveEntry">
-              Save
+            <button type="button" class="rounded-md bg-[#263e30] px-4 py-2 text-sm font-medium text-white transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60 flex items-center gap-2" :disabled="isSaving" @click="saveEntry">
+              <svg v-if="isSaving" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+              </svg>
+              {{ isSaving ? 'Saving...' : 'Save' }}
             </button>
           </div>
         </form>

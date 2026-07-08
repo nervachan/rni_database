@@ -1,6 +1,12 @@
 const express = require('express');
-const { auth } = require('../firebase.cjs');
 const { supabase } = require('../supabaseClient.cjs');
+
+let auth = null;
+try {
+  ({ auth } = require('../firebase.cjs'));
+} catch (err) {
+  console.error('Firebase not configured (missing firebase-service-account.json). /api/applications routes that require Firebase will return 503 until it is added.');
+}
 
 const app = express();
 
@@ -12,6 +18,18 @@ app.use((req, res, next) => {
   res.header('Access-Control-Allow-Headers', 'Content-Type');
   next();
 });
+
+function isValidId(id) {
+  return /^\d+$/.test(id);
+}
+
+function pick(body, allowedKeys) {
+  const result = {};
+  for (const key of allowedKeys) {
+    if (body[key] !== undefined) result[key] = body[key];
+  }
+  return result;
+}
 
 // Test endpoint
 app.get('/api/test', (req, res) => {
@@ -35,7 +53,7 @@ app.get('/api/users', async (req, res) => {
 // Get all research entries
 app.get('/api/research-entries', async (req, res) => {
   const { data, error } = await supabase
-    .from('research-entries')
+    .from('research_entries')
     .select('*');
 
   if (error) {
@@ -43,144 +61,376 @@ app.get('/api/research-entries', async (req, res) => {
     return res.status(500).json({ error: error.message });
   }
 
-  res.json({ 'research-entries': data });
+  res.json({ entries: data });
 });
 
+app.post('/api/research-entries', async (req, res) => {
+  const { data, error } = await supabase
+    .from('research_entries')
+    .insert(req.body)
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ entry: data });
+});
+
+app.patch('/api/research-entries/:id', async (req, res) => {
+  const { data, error } = await supabase
+    .from('research_entries')
+    .update(req.body)
+    .eq('id', req.params.id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ entry: data });
+});
+
+app.delete('/api/research-entries/:id', async (req, res) => {
+  const { error } = await supabase
+    .from('research_entries')
+    .delete()
+    .eq('id', req.params.id);
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ success: true });
+});
+
+app.get('/api/classifications', async (req, res) => {
+  const { data, error } = await supabase
+    .from('classifications')
+    .select('*');
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ classifications: data });
+});
+
+app.get('/api/cohorts', async (req, res) => {
+  const { data, error } = await supabase
+    .from('cohorts')
+    .select('*');
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ cohorts: data });
+});
+
+app.post('/api/cohorts', async (req, res) => {
+  const payload = pick(req.body, ['cohort_name']);
+
+  const { data, error } = await supabase
+    .from('cohorts')
+    .insert(payload)
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ cohort: data });
+});
+
+app.get('/api/startups', async (req, res) => {
+  const { data, error } = await supabase
+    .from('startups')
+    .select('*');
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ startups: data });
+});
+
+app.post('/api/startups', async (req, res) => {
+  const payload = pick(req.body, ['cohort_id', 'name', 'genre', 'short_description', 'logo_url']);
+
+  const { data, error } = await supabase
+    .from('startups')
+    .insert(payload)
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ startup: data });
+});
+
+app.patch('/api/startups/:id', async (req, res) => {
+  if (!isValidId(req.params.id)) {
+    return res.status(400).json({ error: 'Invalid id' });
+  }
+
+  const payload = pick(req.body, ['cohort_id', 'name', 'genre', 'short_description', 'logo_url']);
+
+  const { data, error } = await supabase
+    .from('startups')
+    .update(payload)
+    .eq('id', req.params.id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ startup: data });
+});
+
+app.delete('/api/startups/:id', async (req, res) => {
+  if (!isValidId(req.params.id)) {
+    return res.status(400).json({ error: 'Invalid id' });
+  }
+
+  const { error } = await supabase
+    .from('startups')
+    .delete()
+    .eq('id', req.params.id);
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ success: true });
+});
+
+app.get('/api/ips', async (req, res) => {
+  const { data, error } = await supabase
+    .from('ips')
+    .select('*');
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ ips: data });
+});
+
+app.post('/api/ips', async (req, res) => {
+  const payload = pick(req.body, ['title', 'inventors', 'filing_date', 'status', 'classification_id', 'ref_number']);
+
+  const { data, error } = await supabase
+    .from('ips')
+    .insert(payload)
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ ip: data });
+});
+
+app.patch('/api/ips/:id', async (req, res) => {
+  if (!isValidId(req.params.id)) {
+    return res.status(400).json({ error: 'Invalid id' });
+  }
+
+  const payload = pick(req.body, ['title', 'inventors', 'filing_date', 'status', 'classification_id', 'ref_number']);
+
+  const { data, error } = await supabase
+    .from('ips')
+    .update(payload)
+    .eq('id', req.params.id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ ip: data });
+});
+
+app.delete('/api/ips/:id', async (req, res) => {
+  if (!isValidId(req.params.id)) {
+    return res.status(400).json({ error: 'Invalid id' });
+  }
+
+  const { error } = await supabase
+    .from('ips')
+    .delete()
+    .eq('id', req.params.id);
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ success: true });
+});
+
+// Get pending applications
+app.get('/api/applications', async (req, res) => {
+  const { data, error } = await supabase
+    .from('applications')
+    .select('*')
+    .eq('status', 'pending');
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json({ applications: data });
+});
+
+// Submit an application
 app.post('/api/applications', async (req, res) => {
+  const { email, password, firstName, lastName, role } = req.body;
+
+  if (!email || !password || !firstName || !lastName || !role) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+
+  if (!auth) {
+    return res.status(503).json({ error: 'Firebase is not configured on this server yet.' });
+  }
+
+  let userRecord;
   try {
-    const { email, password, firstName, lastName, role } = req.body;
-
-    if (!email || !password || !firstName || !lastName || !role) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-
-    const userRecord = await auth.createUser({
+    userRecord = await auth.createUser({
       email,
       password,
-      displayName: `${firstName} ${lastName}`
+      displayName: `${firstName} ${lastName}`,
     });
-
-    const { data, error } = await supabase
-      .from('applications')
-      .insert({
-        firebase_uid: userRecord.uid,
-        first_name: firstName,
-        last_name: lastName,
-        email,
-        role,
-        status: 'pending'
-      })
-      .select();
-
-    if (error) {
-      console.error(error);
-      return res.status(500).json({ error: error.message });
-    }
-
-    res.status(201).json({
-      message: 'Application submitted',
-      applicationId: data[0].id,
-      firebaseUid: userRecord.uid
-    });
-  } catch (error) {
-    console.error('Request error:', error);
-    res.status(500).json({ error: error.message });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: err.message });
   }
+
+  const { data, error } = await supabase
+    .from('applications')
+    .insert({
+      firebase_uid: userRecord.uid,
+      first_name: firstName,
+      last_name: lastName,
+      email,
+      role,
+      status: 'pending',
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error(error);
+    try {
+      await auth.deleteUser(userRecord.uid);
+    } catch (cleanupErr) {
+      console.error('Failed to roll back Firebase user after Supabase insert failure:', cleanupErr);
+    }
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.status(201).json({ application: data, firebaseUid: userRecord.uid });
 });
 
-// PATCH /api/applications/:id/approve - Approve application
 app.patch('/api/applications/:id/approve', async (req, res) => {
-  try {
-    const { id } = req.params;
+  const { id } = req.params;
 
-    // Get the application
-    const { data: application, error: fetchError } = await supabase
-      .from('applications')
-      .select('*')
-      .eq('id', id)
-      .single();
+  const { data: application, error: fetchError } = await supabase
+    .from('applications')
+    .select('*')
+    .eq('id', id)
+    .single();
 
-    if (fetchError || !application) {
-      return res.status(404).json({ error: 'Application not found' });
-    }
-
-    // Update status to approved
-    const { error: updateError } = await supabase
-      .from('applications')
-      .update({ status: 'approved' })
-      .eq('id', id);
-
-    if (updateError) {
-      return res.status(500).json({ error: updateError.message });
-    }
-
-    // Copy to users table
-    const { error: insertError } = await supabase
-      .from('users')
-      .insert({
-        firebase_uid: application.firebase_uid,
-        name: `${application.first_name} ${application.last_name}`,
-        email: application.email,
-        role: application.role
-      });
-
-    if (insertError) {
-      return res.status(500).json({ error: insertError.message });
-    }
-
-    res.json({ message: 'Application approved' });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+  if (fetchError) {
+    console.error(fetchError);
+    return res.status(404).json({ error: 'Application not found' });
   }
+
+  const { error: updateError } = await supabase
+    .from('applications')
+    .update({ status: 'approved' })
+    .eq('id', id);
+
+  if (updateError) {
+    console.error(updateError);
+    return res.status(500).json({ error: updateError.message });
+  }
+
+  const { error: insertError } = await supabase
+    .from('users')
+    .insert({
+      firebase_uid: application.firebase_uid,
+      name: `${application.first_name} ${application.last_name}`,
+      email: application.email,
+      role: application.role,
+    });
+
+  if (insertError) {
+    console.error(insertError);
+    return res.status(500).json({ error: insertError.message });
+  }
+
+  res.json({ message: 'Application approved' });
 });
 
-// PATCH /api/applications/:id/reject - Reject application
 app.patch('/api/applications/:id/reject', async (req, res) => {
-  try {
-    const { id } = req.params;
+  const { id } = req.params;
 
-    // Get the application
-    const { data: application, error: fetchError } = await supabase
-      .from('applications')
-      .select('*')
-      .eq('id', id)
-      .single();
+  const { data: application, error: fetchError } = await supabase
+    .from('applications')
+    .select('*')
+    .eq('id', id)
+    .single();
 
-    if (fetchError || !application) {
-      return res.status(404).json({ error: 'Application not found' });
-    }
+  if (fetchError) {
+    console.error(fetchError);
+    return res.status(404).json({ error: 'Application not found' });
+  }
 
-    // Update status to rejected
-    const { error: updateError } = await supabase
-      .from('applications')
-      .update({ status: 'rejected' })
-      .eq('id', id);
+  const { error } = await supabase
+    .from('applications')
+    .update({ status: 'rejected' })
+    .eq('id', id);
 
-    if (updateError) {
-      return res.status(500).json({ error: updateError.message });
-    }
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
 
-    // Delete Firebase account
+  if (auth) {
     try {
       await auth.deleteUser(application.firebase_uid);
     } catch (deleteError) {
       console.error('Failed to delete Firebase user:', deleteError);
     }
-
-    res.json({ message: 'Application rejected' });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
   }
-});
 
-// GET /api/applications - Get pending applications (mock data for now)
-app.get('/api/applications', (req, res) => {
-  const applications = [
-    { id: 1, name: 'Ana Dela Cruz', role: 'INTTO', email: 'ana.delacruz@example.com', dateApplied: '2026-06-30', status: 'pending' },
-    { id: 2, name: 'Lorenzo Rivera', role: 'RSO', email: 'lorenzo.rivera@example.com', dateApplied: '2026-06-29', status: 'pending' },
-    { id: 3, name: 'Bea Mendoza', role: 'INTTO', email: 'bea.mendoza@example.com', dateApplied: '2026-06-28', status: 'pending' },
-  ];
-  res.json(applications.filter(a => a.status === 'pending'));
+  res.json({ message: 'Application rejected' });
 });
 
 // Logs
@@ -201,7 +451,7 @@ app.get('/api/notifications', (req, res) => {
   const notifications = [
     { id: 1, text: 'New application received from Ana Dela Cruz.', createdAt: '2026-06-30T14:30:00' },
     { id: 2, text: 'Application from Lorenzo Rivera was approved.', createdAt: '2026-06-30T11:15:00' },
-    { id: 3, text: 'A user profile change requires review.', createdAt: '2026-06-28T09:05:00' },
+    { id: 3, text: 'A user profile change requires review.', createdAt: '2026-06-29T18:40:00' },
     { id: 4, text: 'New research entry submission is awaiting review.', createdAt: '2026-06-28T09:05:00' },
   ];
   res.json(notifications);
