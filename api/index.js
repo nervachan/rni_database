@@ -1,5 +1,6 @@
 const express = require('express');
 const { supabase } = require('../supabaseClient.cjs');
+const { verifyToken, requireRole } = require('../authMiddleware.cjs');
 
 let auth = null;
 try {
@@ -15,7 +16,7 @@ app.use(express.json());
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', process.env.FRONTEND_URL || '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE');
-  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   next();
 });
 
@@ -293,7 +294,7 @@ app.delete('/api/ips/:id', async (req, res) => {
 });
 
 // Get pending applications
-app.get('/api/applications', async (req, res) => {
+app.get('/api/applications', verifyToken, requireRole('superadmin'), async (req, res) => {
   const { data, error } = await supabase
     .from('applications')
     .select('*')
@@ -304,7 +305,15 @@ app.get('/api/applications', async (req, res) => {
     return res.status(500).json({ error: error.message });
   }
 
-  res.json({ applications: data });
+  const shaped = data.map((a) => ({
+    id: a.id,
+    name: `${a.first_name} ${a.last_name}`,
+    role: a.role,
+    email: a.email,
+    dateApplied: new Date(a.date_applied).toISOString().split('T')[0],
+  }));
+
+  res.json(shaped);
 });
 
 // Submit an application
@@ -325,6 +334,7 @@ app.post('/api/applications', async (req, res) => {
       email,
       password,
       displayName: `${firstName} ${lastName}`,
+      disabled: true,
     });
   } catch (err) {
     console.error(err);
@@ -357,7 +367,7 @@ app.post('/api/applications', async (req, res) => {
   res.status(201).json({ application: data, firebaseUid: userRecord.uid });
 });
 
-app.patch('/api/applications/:id/approve', async (req, res) => {
+app.patch('/api/applications/:id/approve', verifyToken, requireRole('superadmin'), async (req, res) => {
   const { id } = req.params;
 
   const { data: application, error: fetchError } = await supabase
@@ -381,6 +391,12 @@ app.patch('/api/applications/:id/approve', async (req, res) => {
     return res.status(500).json({ error: updateError.message });
   }
 
+  if (auth) {
+    const normalizedRole = application.role.toLowerCase();
+    await auth.setCustomUserClaims(application.firebase_uid, { role: normalizedRole });
+    await auth.updateUser(application.firebase_uid, { disabled: false });
+  }
+
   const { error: insertError } = await supabase
     .from('users')
     .insert({
@@ -398,7 +414,7 @@ app.patch('/api/applications/:id/approve', async (req, res) => {
   res.json({ message: 'Application approved' });
 });
 
-app.patch('/api/applications/:id/reject', async (req, res) => {
+app.patch('/api/applications/:id/reject', verifyToken, requireRole('superadmin'), async (req, res) => {
   const { id } = req.params;
 
   const { data: application, error: fetchError } = await supabase

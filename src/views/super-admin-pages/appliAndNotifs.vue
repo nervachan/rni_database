@@ -1,15 +1,15 @@
 <script setup>
-
 import { CheckIcon, XMarkIcon } from '@heroicons/vue/24/outline';
 import { computed, ref } from 'vue';
 import ReusableTable from '../../components/tables/ReusableTable.vue';
 import { approveApplication, getApplications, rejectApplication } from '../../services/applicationService';
 import { getNotifications } from '../../services/notificationService';
 
-const applications = ref(getApplications());
+const applications = ref([]);
 const notifications = ref(getNotifications());
+const isLoading = ref(true);
+const loadError = ref('');
 
-// Confirmation modal state
 const confirmModalOpen = ref(false);
 const confirmMessage = ref('');
 const confirmAction = ref(null);
@@ -29,6 +29,20 @@ const tableActions = [
 
 const pendingApplications = computed(() => applications.value);
 
+async function loadApplications() {
+  isLoading.value = true;
+  loadError.value = '';
+  try {
+    applications.value = await getApplications();
+  } catch (err) {
+    loadError.value = 'Failed to load applications.';
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+loadApplications();
+
 function formatTimeAgo(value) {
   const date = new Date(value);
   const now = new Date();
@@ -43,7 +57,6 @@ function formatTimeAgo(value) {
   return 'just now';
 }
 
-// --- Confirmation modal helpers ---
 function openConfirm(message, action) {
   confirmMessage.value = message;
   confirmAction.value = action;
@@ -64,13 +77,17 @@ function handleConfirmNo() {
 function handleApplicationAction({ action, row }) {
   const label = action.key === 'approve' ? 'approve' : 'reject';
 
-  openConfirm(`Are you sure you want to ${label} this application for ${row.name}?`, () => {
-    if (action.key === 'approve') {
-      approveApplication(row.id);
-    } else {
-      rejectApplication(row.id);
+  openConfirm(`Are you sure you want to ${label} this application for ${row.name}?`, async () => {
+    try {
+      if (action.key === 'approve') {
+        await approveApplication(row.id);
+      } else {
+        await rejectApplication(row.id);
+      }
+      await loadApplications();
+    } catch (err) {
+      loadError.value = `Failed to ${label} application.`;
     }
-    applications.value = getApplications();
   });
 }
 </script>
@@ -84,6 +101,9 @@ function handleApplicationAction({ action, row }) {
           <p class="text-sm text-gray-500">Review pending account applications.</p>
         </div>
       </div>
+
+      <div v-if="isLoading" class="text-sm text-gray-500 p-4">Loading applications...</div>
+      <div v-else-if="loadError" class="text-sm text-red-500 p-4">{{ loadError }}</div>
 
       <ReusableTable
         v-if="pendingApplications.length"
