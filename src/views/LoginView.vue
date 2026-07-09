@@ -3,21 +3,25 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import {EyeIcon, EyeSlashIcon} from '@heroicons/vue/24/outline';
+import { useAuthStore } from '../stores/auth';
 
 const router = useRouter();
+const authStore = useAuthStore();
 const email = ref('');
-const emailError = ref ('');
+const emailError = ref('');
 const password = ref('');
 const passwordError = ref('');
 const loginRole = ref('RSO');
+const loginError = ref('');
+const isSubmitting = ref(false);
 
-function handleLogin() {
+async function handleLogin() {
     if (email.value.trim() === '') {
         emailError.value = 'Email must not be empty';
         return;
     }
         emailError.value = '';
-    
+
     if (!email.value.includes('@')) {
         emailError.value = 'Invalid Email';
         return;
@@ -29,6 +33,27 @@ function handleLogin() {
         return;
     }
         passwordError.value = '';
+
+    loginError.value = '';
+    isSubmitting.value = true;
+
+    try {
+        const selectedRole = loginRole.value.toLowerCase();
+        const actualRole = await authStore.login(email.value, password.value, selectedRole);
+
+        if (!['rso', 'intto'].includes(actualRole)) {
+            loginError.value = 'This account is not authorized for RSO or INTTO access.';
+            await authStore.logout();
+            return;
+        }
+
+        router.push(`/${selectedRole}-admin/dashboard`);
+    } catch (err) {
+        loginError.value = 'Invalid email or password.';
+        password.value = '';
+    } finally {
+        isSubmitting.value = false;
+    }
 }
 
 function goToRegister() {
@@ -96,8 +121,12 @@ const showPassword = ref(false);
                 </div>
             </div>
 
+            <p v-if="loginError" class="text-red-500 text-sm text-center">{{ loginError }}</p>
+
             <div class="Buttons flex-row gap-4 flex">
-                <button class="rounded-md bg-[#2e4e3c] text-white p-2 w-28 hover:opacity-80" @click="handleLogin">Login</button>
+                <button class="rounded-md bg-[#2e4e3c] text-white p-2 w-28 hover:opacity-80 disabled:opacity-50" :disabled="isSubmitting" @click="handleLogin">
+                    {{ isSubmitting ? 'Logging in...' : 'Login' }}
+                </button>
                 <button class="rounded-md bg-[#2e4e3c] text-white p-2 w-28 hover:opacity-80" @click="goToRegister">Sign Up</button>
             </div>
 

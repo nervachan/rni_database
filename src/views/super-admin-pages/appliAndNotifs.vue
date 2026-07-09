@@ -5,8 +5,10 @@ import ReusableTable from '../../components/tables/ReusableTable.vue';
 import { approveApplication, getApplications, rejectApplication } from '../../services/applicationService';
 import { getNotifications } from '../../services/notificationService';
 
-const applications = ref(getApplications());
+const applications = ref([]);
 const notifications = ref(getNotifications());
+const isLoading = ref(true);
+const loadError = ref('');
 
 // Confirmation modal state
 const confirmModalOpen = ref(false);
@@ -27,6 +29,20 @@ const tableActions = [
 ];
 
 const pendingApplications = computed(() => applications.value);
+
+async function loadApplications() {
+  isLoading.value = true;
+  loadError.value = '';
+  try {
+    applications.value = await getApplications();
+  } catch (err) {
+    loadError.value = 'Failed to load applications.';
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+loadApplications();
 
 function formatTimeAgo(value) {
   const date = new Date(value);
@@ -63,13 +79,17 @@ function handleConfirmNo() {
 function handleApplicationAction({ action, row }) {
   const label = action.key === 'approve' ? 'approve' : 'reject';
 
-  openConfirm(`Are you sure you want to ${label} this application for ${row.name}?`, () => {
-    if (action.key === 'approve') {
-      approveApplication(row.id);
-    } else {
-      rejectApplication(row.id);
+  openConfirm(`Are you sure you want to ${label} this application for ${row.name}?`, async () => {
+    try {
+      if (action.key === 'approve') {
+        await approveApplication(row.id);
+      } else {
+        await rejectApplication(row.id);
+      }
+      await loadApplications();
+    } catch (err) {
+      loadError.value = `Failed to ${label} application.`;
     }
-    applications.value = getApplications();
   });
 }
 </script>
@@ -84,8 +104,11 @@ function handleApplicationAction({ action, row }) {
         </div>
       </div>
 
+      <div v-if="isLoading" class="text-sm text-gray-500 p-4">Loading applications...</div>
+      <div v-else-if="loadError" class="text-sm text-red-500 p-4">{{ loadError }}</div>
+
       <ReusableTable
-        v-if="pendingApplications.length"
+        v-else-if="pendingApplications.length"
         :rows="pendingApplications"
         :columns="tableColumns"
         :actions="tableActions"

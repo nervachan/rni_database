@@ -1,6 +1,7 @@
 const express = require('express');
 const { auth } = require('../firebase.cjs');
 const { supabase } = require('../supabaseClient.cjs');
+const { verifyToken, requireRole } = require('../authMiddleware.cjs');
 
 const app = express();
 
@@ -9,7 +10,7 @@ app.use(express.json());
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', process.env.FRONTEND_URL || '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE');
-  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   next();
 });
 
@@ -57,7 +58,8 @@ app.post('/api/applications', async (req, res) => {
     const userRecord = await auth.createUser({
       email,
       password,
-      displayName: `${firstName} ${lastName}`
+      displayName: `${firstName} ${lastName}`,
+      disabled: true,
     });
 
     const { data, error } = await supabase
@@ -89,11 +91,10 @@ app.post('/api/applications', async (req, res) => {
 });
 
 // PATCH /api/applications/:id/approve - Approve application
-app.patch('/api/applications/:id/approve', async (req, res) => {
+app.patch('/api/applications/:id/approve', verifyToken, requireRole('superadmin'), async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Get the application
     const { data: application, error: fetchError } = await supabase
       .from('applications')
       .select('*')
@@ -104,7 +105,6 @@ app.patch('/api/applications/:id/approve', async (req, res) => {
       return res.status(404).json({ error: 'Application not found' });
     }
 
-    // Update status to approved
     const { error: updateError } = await supabase
       .from('applications')
       .update({ status: 'approved' })
@@ -114,14 +114,18 @@ app.patch('/api/applications/:id/approve', async (req, res) => {
       return res.status(500).json({ error: updateError.message });
     }
 
-    // Copy to users table
+    const normalizedRole = application.role.toLowerCase();
+
+    await auth.setCustomUserClaims(application.firebase_uid, { role: normalizedRole });
+    await auth.updateUser(application.firebase_uid, { disabled: false });
+
     const { error: insertError } = await supabase
       .from('users')
       .insert({
         firebase_uid: application.firebase_uid,
         name: `${application.first_name} ${application.last_name}`,
         email: application.email,
-        role: application.role
+        role: application.role,
       });
 
     if (insertError) {
@@ -135,7 +139,7 @@ app.patch('/api/applications/:id/approve', async (req, res) => {
 });
 
 // PATCH /api/applications/:id/reject - Reject application
-app.patch('/api/applications/:id/reject', async (req, res) => {
+app.patch('/api/applications/:id/reject', verifyToken, requireRole('superadmin'), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -174,13 +178,26 @@ app.patch('/api/applications/:id/reject', async (req, res) => {
 });
 
 // GET /api/applications - Get pending applications (mock data for now)
-app.get('/api/applications', (req, res) => {
-  const applications = [
-    { id: 1, name: 'Ana Dela Cruz', role: 'INTTO', email: 'ana.delacruz@example.com', dateApplied: '2026-06-30', status: 'pending' },
-    { id: 2, name: 'Lorenzo Rivera', role: 'RSO', email: 'lorenzo.rivera@example.com', dateApplied: '2026-06-29', status: 'pending' },
-    { id: 3, name: 'Bea Mendoza', role: 'INTTO', email: 'bea.mendoza@example.com', dateApplied: '2026-06-28', status: 'pending' },
-  ];
-  res.json(applications.filter(a => a.status === 'pending'));
+app.get('/api/applications', verifyToken, requireRole('superadmin'), async (req, res) => {
+  const { data, error } = await supabase
+    .from('applications')
+    .select('*')
+    .eq('status', 'pending');
+
+  if (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  const shaped = data.map((a) => ({
+    id: a.id,
+    name: `${a.first_name} ${a.last_name}`,
+    role: a.role,
+    email: a.email,
+    dateApplied: new Date(a.date_applied).toISOString().split('T')[0],
+  }));
+
+  res.json(shaped);
 });
 
 // Logs

@@ -1,43 +1,16 @@
-const initialApplications = [ //Mock data, to be cleaned later
-  {
-    id: 1,
-    name: 'Ana Dela Cruz',
-    role: 'INTTO',
-    email: 'ana.delacruz@example.com',
-    dateApplied: '2026-06-30',
-    status: 'pending',
-  },
-  {
-    id: 2,
-    name: 'Lorenzo Rivera',
-    role: 'RSO',
-    email: 'lorenzo.rivera@example.com',
-    dateApplied: '2026-06-29',
-    status: 'pending',
-  },
-  {
-    id: 3,
-    name: 'Bea Mendoza',
-    role: 'INTTO',
-    email: 'bea.mendoza@example.com',
-    dateApplied: '2026-06-28',
-    status: 'pending',
-  },
-];
+import api from './api';
 
-//functions to get, approve, and reject applications
-let applications = initialApplications.map((application) => ({ ...application }));
-
-export function getApplications() {
-  return applications.filter((application) => application.status === 'pending').map((application) => ({ ...application }));
+export async function getApplications() {
+  const response = await api.get('/applications');
+  return response.data;
 }
 
-export function approveApplication(id) {
-  applications = applications.map((application) => (application.id === id ? { ...application, status: 'approved' } : application));
+export async function approveApplication(id) {
+  await api.patch(`/applications/${id}/approve`);
   return true;
 }
 
-export function rejectApplication(id) {
-  applications = applications.map((application) => (application.id === id ? { ...application, status: 'rejected' } : application));
+export async function rejectApplication(id) {
+  await api.patch(`/applications/${id}/reject`);
   return true;
 }
