@@ -1,3 +1,4 @@
+// rni_database/api/index.js
 const express = require('express');
 const { supabase } = require('../supabaseClient.cjs');
 const { verifyToken, requireRole } = require('../authMiddleware.cjs');
@@ -37,8 +38,8 @@ app.get('/api/test', (req, res) => {
   res.json({ message: 'Backend is working' });
 });
 
-// Get all users
-app.get('/api/users', async (req, res) => {
+// Get all users - superadmin only
+app.get('/api/users', verifyToken, requireRole('superadmin'), async (req, res) => {
   const { data, error } = await supabase
     .from('users')
     .select('*');
@@ -51,8 +52,8 @@ app.get('/api/users', async (req, res) => {
   res.json({ users: data });
 });
 
-// Get all research entries
-app.get('/api/research-entries', async (req, res) => {
+// Research entries - RSO full CRUD, INTTO read-only
+app.get('/api/research-entries', verifyToken, requireRole('rso', 'intto'), async (req, res) => {
   const { data, error } = await supabase
     .from('research_entries')
     .select('*');
@@ -65,7 +66,7 @@ app.get('/api/research-entries', async (req, res) => {
   res.json({ entries: data });
 });
 
-app.post('/api/research-entries', async (req, res) => {
+app.post('/api/research-entries', verifyToken, requireRole('rso'), async (req, res) => {
   const { data, error } = await supabase
     .from('research_entries')
     .insert(req.body)
@@ -80,7 +81,7 @@ app.post('/api/research-entries', async (req, res) => {
   res.json({ entry: data });
 });
 
-app.patch('/api/research-entries/:id', async (req, res) => {
+app.patch('/api/research-entries/:id', verifyToken, requireRole('rso'), async (req, res) => {
   const { data, error } = await supabase
     .from('research_entries')
     .update(req.body)
@@ -96,7 +97,7 @@ app.patch('/api/research-entries/:id', async (req, res) => {
   res.json({ entry: data });
 });
 
-app.delete('/api/research-entries/:id', async (req, res) => {
+app.delete('/api/research-entries/:id', verifyToken, requireRole('rso'), async (req, res) => {
   const { error } = await supabase
     .from('research_entries')
     .delete()
@@ -110,7 +111,8 @@ app.delete('/api/research-entries/:id', async (req, res) => {
   res.json({ success: true });
 });
 
-app.get('/api/classifications', async (req, res) => {
+// Classifications - INTTO lookup table (read-only route for now, no writes exist yet)
+app.get('/api/classifications', verifyToken, requireRole('rso', 'intto'), async (req, res) => {
   const { data, error } = await supabase
     .from('classifications')
     .select('*');
@@ -123,7 +125,8 @@ app.get('/api/classifications', async (req, res) => {
   res.json({ classifications: data });
 });
 
-app.get('/api/cohorts', async (req, res) => {
+// Cohorts - treated as INTTO-owned (used to group startups); confirm with supervisor
+app.get('/api/cohorts', verifyToken, requireRole('rso', 'intto'), async (req, res) => {
   const { data, error } = await supabase
     .from('cohorts')
     .select('*');
@@ -136,7 +139,7 @@ app.get('/api/cohorts', async (req, res) => {
   res.json({ cohorts: data });
 });
 
-app.post('/api/cohorts', async (req, res) => {
+app.post('/api/cohorts', verifyToken, requireRole('intto'), async (req, res) => {
   const payload = pick(req.body, ['cohort_name']);
 
   const { data, error } = await supabase
@@ -153,7 +156,8 @@ app.post('/api/cohorts', async (req, res) => {
   res.json({ cohort: data });
 });
 
-app.get('/api/startups', async (req, res) => {
+// Startups - INTTO full CRUD, RSO read-only
+app.get('/api/startups', verifyToken, requireRole('rso', 'intto'), async (req, res) => {
   const { data, error } = await supabase
     .from('startups')
     .select('*');
@@ -166,7 +170,7 @@ app.get('/api/startups', async (req, res) => {
   res.json({ startups: data });
 });
 
-app.post('/api/startups', async (req, res) => {
+app.post('/api/startups', verifyToken, requireRole('intto'), async (req, res) => {
   const payload = pick(req.body, ['cohort_id', 'name', 'genre', 'short_description', 'logo_url']);
 
   const { data, error } = await supabase
@@ -183,7 +187,7 @@ app.post('/api/startups', async (req, res) => {
   res.json({ startup: data });
 });
 
-app.patch('/api/startups/:id', async (req, res) => {
+app.patch('/api/startups/:id', verifyToken, requireRole('intto'), async (req, res) => {
   if (!isValidId(req.params.id)) {
     return res.status(400).json({ error: 'Invalid id' });
   }
@@ -205,7 +209,7 @@ app.patch('/api/startups/:id', async (req, res) => {
   res.json({ startup: data });
 });
 
-app.delete('/api/startups/:id', async (req, res) => {
+app.delete('/api/startups/:id', verifyToken, requireRole('intto'), async (req, res) => {
   if (!isValidId(req.params.id)) {
     return res.status(400).json({ error: 'Invalid id' });
   }
@@ -223,7 +227,8 @@ app.delete('/api/startups/:id', async (req, res) => {
   res.json({ success: true });
 });
 
-app.get('/api/ips', async (req, res) => {
+// IPs - INTTO full CRUD, RSO read-only
+app.get('/api/ips', verifyToken, requireRole('rso', 'intto'), async (req, res) => {
   const { data, error } = await supabase
     .from('ips')
     .select('*');
@@ -236,7 +241,7 @@ app.get('/api/ips', async (req, res) => {
   res.json({ ips: data });
 });
 
-app.post('/api/ips', async (req, res) => {
+app.post('/api/ips', verifyToken, requireRole('intto'), async (req, res) => {
   const payload = pick(req.body, ['title', 'inventors', 'filing_date', 'status', 'classification_id', 'ref_number']);
 
   const { data, error } = await supabase
@@ -253,7 +258,7 @@ app.post('/api/ips', async (req, res) => {
   res.json({ ip: data });
 });
 
-app.patch('/api/ips/:id', async (req, res) => {
+app.patch('/api/ips/:id', verifyToken, requireRole('intto'), async (req, res) => {
   if (!isValidId(req.params.id)) {
     return res.status(400).json({ error: 'Invalid id' });
   }
@@ -275,7 +280,7 @@ app.patch('/api/ips/:id', async (req, res) => {
   res.json({ ip: data });
 });
 
-app.delete('/api/ips/:id', async (req, res) => {
+app.delete('/api/ips/:id', verifyToken, requireRole('intto'), async (req, res) => {
   if (!isValidId(req.params.id)) {
     return res.status(400).json({ error: 'Invalid id' });
   }
@@ -316,7 +321,7 @@ app.get('/api/applications', verifyToken, requireRole('superadmin'), async (req,
   res.json(shaped);
 });
 
-// Submit an application
+// Submit an application - public, no auth required (this is registration)
 app.post('/api/applications', async (req, res) => {
   const { email, password, firstName, lastName, role } = req.body;
 
@@ -449,8 +454,8 @@ app.patch('/api/applications/:id/reject', verifyToken, requireRole('superadmin')
   res.json({ message: 'Application rejected' });
 });
 
-// Logs
-app.get('/api/logs', (req, res) => {
+// Logs - superadmin only
+app.get('/api/logs', verifyToken, requireRole('superadmin'), (req, res) => {
   const logs = [
     { id: 1, timestamp: '2026-06-30T14:30:00', action: 'User Login', name: 'Maria Santos', email: 'maria.santos@example.com', role: 'INTTO', severity: 'normal' },
     { id: 2, timestamp: '2026-06-29T10:15:00', action: 'Profile Updated', name: 'Rafael Lim', email: 'rafael.lim@example.com', role: 'RSO', severity: 'warning' },
@@ -462,8 +467,8 @@ app.get('/api/logs', (req, res) => {
   res.json(logs);
 });
 
-// Notifications
-app.get('/api/notifications', (req, res) => {
+// Notifications - superadmin only
+app.get('/api/notifications', verifyToken, requireRole('superadmin'), (req, res) => {
   const notifications = [
     { id: 1, text: 'New application received from Ana Dela Cruz.', createdAt: '2026-06-30T14:30:00' },
     { id: 2, text: 'Application from Lorenzo Rivera was approved.', createdAt: '2026-06-30T11:15:00' },

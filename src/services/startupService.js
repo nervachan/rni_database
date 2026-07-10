@@ -1,4 +1,6 @@
-const API_BASE = '/api'
+// rni_database/src/services/startupService.js
+import api from './api'
+
 // Convert database row to client-friendly cohort object
 function toClientCohort(row, startupCountByCohortId) {
   return {
@@ -7,7 +9,6 @@ function toClientCohort(row, startupCountByCohortId) {
     value: startupCountByCohortId.get(row.id) ?? 0,
   }
 }
-  
 
 function toClientStartup(row) {
   return {
@@ -20,15 +21,12 @@ function toClientStartup(row) {
   }
 }
 
-
 // Convert client payload to database payload for creating/updating a cohort
 function toDbCohortPayload(payload) {
   const dbPayload = {}
   if (payload.name !== undefined) dbPayload.cohort_name = payload.name
   return dbPayload
 }
-
-
 
 function toDbStartupPayload(payload) {
   const dbPayload = {}
@@ -42,15 +40,18 @@ function toDbStartupPayload(payload) {
 
 // Get the list of cohorts with the count of startups in each cohort
 export async function getCohorts() {
-  const [cohortsRes, startupsRes] = await Promise.all([
-    fetch(`${API_BASE}/cohorts`),
-    fetch(`${API_BASE}/startups`),
-  ])
-  if (!cohortsRes.ok) throw new Error(`Failed to load cohorts (${cohortsRes.status})`)
-  if (!startupsRes.ok) throw new Error(`Failed to load startups (${startupsRes.status})`)
-
-  const { cohorts } = await cohortsRes.json()
-  const { startups } = await startupsRes.json()
+  let cohorts, startups
+  try {
+    const [cohortsRes, startupsRes] = await Promise.all([
+      api.get('/cohorts'),
+      api.get('/startups'),
+    ])
+    cohorts = cohortsRes.data.cohorts
+    startups = startupsRes.data.startups
+  } catch (err) {
+    const status = err.response?.status ?? 'network error'
+    throw new Error(`Failed to load cohorts (${status})`)
+  }
 
   const startupCountByCohortId = new Map()
   startups.forEach(s => {
@@ -60,12 +61,15 @@ export async function getCohorts() {
   return cohorts.map(row => toClientCohort(row, startupCountByCohortId))
 }
 
-
-
 export async function getStartups() {
-  const res = await fetch(`${API_BASE}/startups`)
-  if (!res.ok) throw new Error(`Failed to load startups (${res.status})`)
-  const { startups } = await res.json()
+  let startups
+  try {
+    const { data } = await api.get('/startups')
+    startups = data.startups
+  } catch (err) {
+    const status = err.response?.status ?? 'network error'
+    throw new Error(`Failed to load startups (${status})`)
+  }
 
   return startups.map(toClientStartup)
 }
@@ -81,51 +85,56 @@ export async function getGenres() {
 
   return Object.entries(genreCounts).map(([label, value]) => ({ label, value }))
 }
+
 // Create a new cohort
 export async function createCohort(payload) {
-  const res = await fetch(`${API_BASE}/cohorts`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(toDbCohortPayload(payload)),
-  })
-  if (!res.ok) throw new Error(`Failed to create cohort (${res.status})`)
-  const { cohort } = await res.json()
+  let cohort
+  try {
+    const { data } = await api.post('/cohorts', toDbCohortPayload(payload))
+    cohort = data.cohort
+  } catch (err) {
+    const status = err.response?.status ?? 'network error'
+    throw new Error(`Failed to create cohort (${status})`)
+  }
 
   return { id: cohort.id, name: cohort.cohort_name, value: 0 }
 }
 
-
 // Create a new startup
 export async function createStartup(payload) {
-  const res = await fetch(`${API_BASE}/startups`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(toDbStartupPayload(payload)),
-  })
-  if (!res.ok) throw new Error(`Failed to create startup (${res.status})`)
-  const { startup } = await res.json()
+  let startup
+  try {
+    const { data } = await api.post('/startups', toDbStartupPayload(payload))
+    startup = data.startup
+  } catch (err) {
+    const status = err.response?.status ?? 'network error'
+    throw new Error(`Failed to create startup (${status})`)
+  }
 
   return toClientStartup(startup)
 }
 
-
 // Update a startup by ID
 export async function updateStartup(id, payload) {
-  const res = await fetch(`${API_BASE}/startups/${id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(toDbStartupPayload(payload)),
-  })
-  if (!res.ok) throw new Error(`Failed to update startup (${res.status})`)
-  const { startup } = await res.json()
+  let startup
+  try {
+    const { data } = await api.patch(`/startups/${id}`, toDbStartupPayload(payload))
+    startup = data.startup
+  } catch (err) {
+    const status = err.response?.status ?? 'network error'
+    throw new Error(`Failed to update startup (${status})`)
+  }
 
   return toClientStartup(startup)
 }
 
 // Delete a startup by ID
-
 export async function deleteStartup(id) {
-  const res = await fetch(`${API_BASE}/startups/${id}`, { method: 'DELETE' })
-  if (!res.ok) throw new Error(`Failed to delete startup (${res.status})`)
+  try {
+    await api.delete(`/startups/${id}`)
+  } catch (err) {
+    const status = err.response?.status ?? 'network error'
+    throw new Error(`Failed to delete startup (${status})`)
+  }
   return true
 }

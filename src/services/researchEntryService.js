@@ -1,4 +1,5 @@
-const API_BASE = '/api'
+// rni_database/src/services/researchEntryService.js
+import api from './api'
 
 function toClientRecord(row) {
   return {
@@ -28,39 +29,50 @@ function toDbPayload(record) {
 }
 
 export async function getResearchEntries() {
-  const res = await fetch(`${API_BASE}/research-entries`)
-  if (!res.ok) throw new Error(`Failed to load research entries (${res.status})`)
-  const { entries } = await res.json()
+  let entries
+  try {
+    const { data } = await api.get('/research-entries')
+    entries = data.entries
+  } catch (err) {
+    const status = err.response?.status ?? 'network error'
+    throw new Error(`Failed to load research entries (${status})`)
+  }
 
   return entries.map(toClientRecord)
 }
 
 export async function createResearchEntry(payload) {
-  const res = await fetch(`${API_BASE}/research-entries`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(toDbPayload(payload)),
-  })
-  if (!res.ok) throw new Error(`Failed to create research entry (${res.status})`)
-  const { entry } = await res.json()
+  let entry
+  try {
+    const { data } = await api.post('/research-entries', toDbPayload(payload))
+    entry = data.entry
+  } catch (err) {
+    const status = err.response?.status ?? 'network error'
+    throw new Error(`Failed to create research entry (${status})`)
+  }
 
   return toClientRecord(entry)
 }
 
 export async function updateResearchEntry(id, payload) {
-  const res = await fetch(`${API_BASE}/research-entries/${id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(toDbPayload(payload)),
-  })
-  if (!res.ok) throw new Error(`Failed to update research entry (${res.status})`)
-  const { entry } = await res.json()
+  let entry
+  try {
+    const { data } = await api.patch(`/research-entries/${id}`, toDbPayload(payload))
+    entry = data.entry
+  } catch (err) {
+    const status = err.response?.status ?? 'network error'
+    throw new Error(`Failed to update research entry (${status})`)
+  }
 
   return toClientRecord(entry)
 }
 
 export async function deleteResearchEntry(id) {
-  const res = await fetch(`${API_BASE}/research-entries/${id}`, { method: 'DELETE' })
-  if (!res.ok) throw new Error(`Failed to delete research entry (${res.status})`)
+  try {
+    await api.delete(`/research-entries/${id}`)
+  } catch (err) {
+    const status = err.response?.status ?? 'network error'
+    throw new Error(`Failed to delete research entry (${status})`)
+  }
   return true
 }
