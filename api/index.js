@@ -11,7 +11,14 @@ try {
 
 const app = express();
 
-app.use(express.json());
+//----------------------------- app.use(express.json());-------------------------------------------
+/* With no limit specified, Express's default body-size cap is 100kb — nowhere close to 2.7MB. 
+This middleware rejects the request with 413 Payload Too Large before it ever reaches your route handler, 
+before verifyToken/requireRole even run. 
+The 2MB check on the frontend was never actually enforced against anything real on the backend — it just happened 
+to be nowhere near strict enough for whatever the real, undocumented limit turned out to be. */
+
+app.use(express.json({ limit: '5mb' }));
 
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', process.env.FRONTEND_URL || '*');
@@ -52,7 +59,14 @@ app.get('/api/users', async (req, res) => {
 });
 
 // Get all research entries
-app.get('/api/research-entries', async (req, res) => {
+
+// RSO-only routes below: verifyToken checks the request carries a real,
+// currently-valid Firebase login token; requireRole('rso') then checks that
+// token's role claim is specifically 'rso' before the request is allowed
+// to reach the actual database logic. Anyone else gets a 401 (no/bad token)
+// or 403 (valid token, wrong role) before any Supabase call ever runs.
+
+app.get('/api/research-entries', verifyToken, requireRole('rso'), async (req, res) => {
   const { data, error } = await supabase
     .from('research_entries')
     .select('*');
@@ -65,7 +79,7 @@ app.get('/api/research-entries', async (req, res) => {
   res.json({ entries: data });
 });
 
-app.post('/api/research-entries', async (req, res) => {
+app.post('/api/research-entries', verifyToken, requireRole('rso'), async (req, res) => {
   const { data, error } = await supabase
     .from('research_entries')
     .insert(req.body)
@@ -80,7 +94,7 @@ app.post('/api/research-entries', async (req, res) => {
   res.json({ entry: data });
 });
 
-app.patch('/api/research-entries/:id', async (req, res) => {
+app.patch('/api/research-entries/:id', verifyToken, requireRole('rso'), async (req, res) => {
   const { data, error } = await supabase
     .from('research_entries')
     .update(req.body)
@@ -96,7 +110,7 @@ app.patch('/api/research-entries/:id', async (req, res) => {
   res.json({ entry: data });
 });
 
-app.delete('/api/research-entries/:id', async (req, res) => {
+app.delete('/api/research-entries/:id', verifyToken, requireRole('rso'), async (req, res) => {
   const { error } = await supabase
     .from('research_entries')
     .delete()
@@ -110,7 +124,12 @@ app.delete('/api/research-entries/:id', async (req, res) => {
   res.json({ success: true });
 });
 
-app.get('/api/classifications', async (req, res) => {
+
+// INTTO-only routes below: same pattern as the RSO routes above, but
+// requireRole('intto') instead — these are the classification, cohort,
+// startup, and IP record routes, all owned by the INTTO portal.
+
+app.get('/api/classifications', verifyToken, requireRole('intto'), async (req, res) => {
   const { data, error } = await supabase
     .from('classifications')
     .select('*');
@@ -123,7 +142,7 @@ app.get('/api/classifications', async (req, res) => {
   res.json({ classifications: data });
 });
 
-app.get('/api/cohorts', async (req, res) => {
+app.get('/api/cohorts', verifyToken, requireRole('intto'), async (req, res) => {
   const { data, error } = await supabase
     .from('cohorts')
     .select('*');
@@ -136,7 +155,7 @@ app.get('/api/cohorts', async (req, res) => {
   res.json({ cohorts: data });
 });
 
-app.post('/api/cohorts', async (req, res) => {
+app.post('/api/cohorts', verifyToken, requireRole('intto'), async (req, res) => {
   const payload = pick(req.body, ['cohort_name']);
 
   const { data, error } = await supabase
@@ -153,7 +172,7 @@ app.post('/api/cohorts', async (req, res) => {
   res.json({ cohort: data });
 });
 
-app.get('/api/startups', async (req, res) => {
+app.get('/api/startups', verifyToken, requireRole('intto'), async (req, res) => {
   const { data, error } = await supabase
     .from('startups')
     .select('*');
@@ -166,7 +185,7 @@ app.get('/api/startups', async (req, res) => {
   res.json({ startups: data });
 });
 
-app.post('/api/startups', async (req, res) => {
+app.post('/api/startups', verifyToken, requireRole('intto'), async (req, res) => {
   const payload = pick(req.body, ['cohort_id', 'name', 'genre', 'short_description', 'logo_url']);
 
   const { data, error } = await supabase
@@ -183,7 +202,7 @@ app.post('/api/startups', async (req, res) => {
   res.json({ startup: data });
 });
 
-app.patch('/api/startups/:id', async (req, res) => {
+app.patch('/api/startups/:id', verifyToken, requireRole('intto'), async (req, res) => {
   if (!isValidId(req.params.id)) {
     return res.status(400).json({ error: 'Invalid id' });
   }
@@ -205,7 +224,7 @@ app.patch('/api/startups/:id', async (req, res) => {
   res.json({ startup: data });
 });
 
-app.delete('/api/startups/:id', async (req, res) => {
+app.delete('/api/startups/:id', verifyToken, requireRole('intto'), async (req, res) => {
   if (!isValidId(req.params.id)) {
     return res.status(400).json({ error: 'Invalid id' });
   }
@@ -223,7 +242,7 @@ app.delete('/api/startups/:id', async (req, res) => {
   res.json({ success: true });
 });
 
-app.get('/api/ips', async (req, res) => {
+app.get('/api/ips', verifyToken, requireRole('intto'), async (req, res) => {
   const { data, error } = await supabase
     .from('ips')
     .select('*');
@@ -236,7 +255,7 @@ app.get('/api/ips', async (req, res) => {
   res.json({ ips: data });
 });
 
-app.post('/api/ips', async (req, res) => {
+app.post('/api/ips', verifyToken, requireRole('intto'), async (req, res) => {
   const payload = pick(req.body, ['title', 'inventors', 'filing_date', 'status', 'classification_id', 'ref_number']);
 
   const { data, error } = await supabase
@@ -253,7 +272,7 @@ app.post('/api/ips', async (req, res) => {
   res.json({ ip: data });
 });
 
-app.patch('/api/ips/:id', async (req, res) => {
+app.patch('/api/ips/:id', verifyToken, requireRole('intto'), async (req, res) => {
   if (!isValidId(req.params.id)) {
     return res.status(400).json({ error: 'Invalid id' });
   }
@@ -275,7 +294,7 @@ app.patch('/api/ips/:id', async (req, res) => {
   res.json({ ip: data });
 });
 
-app.delete('/api/ips/:id', async (req, res) => {
+app.delete('/api/ips/:id', verifyToken, requireRole('intto'), async (req, res) => {
   if (!isValidId(req.params.id)) {
     return res.status(400).json({ error: 'Invalid id' });
   }

@@ -1,5 +1,12 @@
-const API_BASE = '/api'
-// Convert database row to client-friendly cohort object
+import api from './api'
+// This file is the service layer for both cohorts and startups — they're
+// managed together on the same page (startupManagement.vue: startups are
+// grouped into cohorts), so it made sense to keep them in one file rather
+// than split them.
+
+// Convert database row to client-friendly cohort object.
+// startupCountByCohortId is computed once in getCohorts() below and passed
+// in here, rather than each cohort querying the startups table itself.
 function toClientCohort(row, startupCountByCohortId) {
   return {
     id:    row.id,
@@ -9,6 +16,8 @@ function toClientCohort(row, startupCountByCohortId) {
 }
   
 
+// Convert a raw startup row (snake_case) into the camelCase shape the
+// Vue components use.
 function toClientStartup(row) {
   return {
     id:               row.id,
@@ -21,7 +30,9 @@ function toClientStartup(row) {
 }
 
 
-// Convert client payload to database payload for creating/updating a cohort
+// Convert client payload to database payload for creating/updating a cohort.
+// Cohorts only really have one editable field (their name) — everything
+// else about a cohort (like its startup count) is derived, not stored.
 function toDbCohortPayload(payload) {
   const dbPayload = {}
   if (payload.name !== undefined) dbPayload.cohort_name = payload.name
@@ -30,6 +41,9 @@ function toDbCohortPayload(payload) {
 
 
 
+// Convert client payload to database payload for creating/updating a
+// startup. Only fields the caller actually set are included, so a partial
+// edit (e.g. just changing the description) doesn't overwrite the rest.
 function toDbStartupPayload(payload) {
   const dbPayload = {}
   if (payload.cohortId         !== undefined) dbPayload.cohort_id        = payload.cohortId
@@ -40,18 +54,21 @@ function toDbStartupPayload(payload) {
   return dbPayload
 }
 
-// Get the list of cohorts with the count of startups in each cohort
+// Get the list of cohorts with the count of startups in each cohort.
+// Cohorts and startups are fetched at the same time (Promise.all) since
+// neither depends on the other — this avoids waiting for one request to
+// finish before starting the second.
 export async function getCohorts() {
   const [cohortsRes, startupsRes] = await Promise.all([
-    fetch(`${API_BASE}/cohorts`),
-    fetch(`${API_BASE}/startups`),
+    api.get('/cohorts'),
+    api.get('/startups'),
   ])
-  if (!cohortsRes.ok) throw new Error(`Failed to load cohorts (${cohortsRes.status})`)
-  if (!startupsRes.ok) throw new Error(`Failed to load startups (${startupsRes.status})`)
 
-  const { cohorts } = await cohortsRes.json()
-  const { startups } = await startupsRes.json()
+  const { cohorts } = cohortsRes.data
+  const { startups } = startupsRes.data
 
+  // Count how many startups belong to each cohort, so each cohort card
+  // can show "12 startups" without a separate query per cohort.
   const startupCountByCohortId = new Map()
   startups.forEach(s => {
     startupCountByCohortId.set(s.cohort_id, (startupCountByCohortId.get(s.cohort_id) ?? 0) + 1)
@@ -62,15 +79,17 @@ export async function getCohorts() {
 
 
 
+// Get the flat list of all startups (used when a page needs the startups
+// themselves, not grouped by cohort).
 export async function getStartups() {
-  const res = await fetch(`${API_BASE}/startups`)
-  if (!res.ok) throw new Error(`Failed to load startups (${res.status})`)
-  const { startups } = await res.json()
-
-  return startups.map(toClientStartup)
+  const { data } = await api.get('/startups')
+  return data.startups.map(toClientStartup)
 }
 
-// Get the list of unique genres from startups
+// Get the list of unique genres in use across all startups, with a count
+// of how many startups have each one. There's no separate 'genres' table —
+// this is derived on the fly from whatever genre values startups already
+// have, so it always reflects real data with no separate list to maintain.
 export async function getGenres() {
   const startups = await getStartups()
 
@@ -81,51 +100,32 @@ export async function getGenres() {
 
   return Object.entries(genreCounts).map(([label, value]) => ({ label, value }))
 }
-// Create a new cohort
+// Create a new cohort. A brand-new cohort always starts at 0 startups,
+// so there's no need to recompute the count — just return 0 directly
+// instead of re-fetching the startups list.
 export async function createCohort(payload) {
-  const res = await fetch(`${API_BASE}/cohorts`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(toDbCohortPayload(payload)),
-  })
-  if (!res.ok) throw new Error(`Failed to create cohort (${res.status})`)
-  const { cohort } = await res.json()
-
-  return { id: cohort.id, name: cohort.cohort_name, value: 0 }
+  const { data } = await api.post('/cohorts', toDbCohortPayload(payload))
+  return { id: data.cohort.id, name: data.cohort.cohort_name, value: 0 }
 }
 
 
-// Create a new startup
+// Create a new startup under a cohort.
 export async function createStartup(payload) {
-  const res = await fetch(`${API_BASE}/startups`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(toDbStartupPayload(payload)),
-  })
-  if (!res.ok) throw new Error(`Failed to create startup (${res.status})`)
-  const { startup } = await res.json()
-
-  return toClientStartup(startup)
+  const { data } = await api.post('/startups', toDbStartupPayload(payload))
+  return toClientStartup(data.startup)
 }
 
 
-// Update a startup by ID
+// Update a startup by ID. Send only the changed fields, get back the
+// full updated row from Supabase.
 export async function updateStartup(id, payload) {
-  const res = await fetch(`${API_BASE}/startups/${id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(toDbStartupPayload(payload)),
-  })
-  if (!res.ok) throw new Error(`Failed to update startup (${res.status})`)
-  const { startup } = await res.json()
-
-  return toClientStartup(startup)
+  const { data } = await api.patch(`/startups/${id}`, toDbStartupPayload(payload))
+  return toClientStartup(data.startup)
 }
 
-// Delete a startup by ID
+// Delete a startup by ID.
 
 export async function deleteStartup(id) {
-  const res = await fetch(`${API_BASE}/startups/${id}`, { method: 'DELETE' })
-  if (!res.ok) throw new Error(`Failed to delete startup (${res.status})`)
+  await api.delete(`/startups/${id}`)
   return true
 }
