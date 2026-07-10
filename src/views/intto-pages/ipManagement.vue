@@ -17,6 +17,11 @@ const rows = ref([])
 const loadError = ref('')
 const deleteError = ref('')
 const actionError = ref('')
+// Disables the Save/Delete buttons while a request is in flight — without
+// this, a fast double-click fires two concurrent create/update/delete calls,
+// producing duplicate rows. This was here before and got lost in a merge.
+const isSaving = ref(false)
+const isDeleting = ref(false)
 
 // --- Toolbar state ---
 const search       = ref('')
@@ -92,6 +97,11 @@ async function submitForm() {
     status:         form.status,
   }
 
+
+  /*to prevent double submission, we set isSaving to true while the request is in flight. 
+  This disables the Save button and prevents multiple concurrent requests that could create duplicate records or cause other issues.*/
+
+  isSaving.value = true
   try {
     if (editingId.value) {
       const updated = await updateIpRecord(editingId.value, record)
@@ -104,6 +114,8 @@ async function submitForm() {
     cancelForm()
   } catch (err) {
     formError.value = 'Failed to save record. ' + err.message
+  } finally {
+    isSaving.value = false
   }
 }
 
@@ -203,9 +215,12 @@ function bulkDelete() {
   showDeleteConfirm.value = true
 }
 
+
+
 async function confirmDelete() {
   if (!deleteCandidate.value) return
   deleteError.value = ''
+  isDeleting.value = true
 
   try {
     if (deleteCandidate.value.id != null) {
@@ -221,6 +236,8 @@ async function confirmDelete() {
     cancelDelete()
   } catch (err) {
     deleteError.value = 'Failed to delete. ' + err.message
+  } finally {
+    isDeleting.value = false
   }
 }
 
@@ -541,8 +558,14 @@ function statusClass(status) {
               <button type="button" @click="cancelForm" class="rounded-2xl border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition">
                 Cancel
               </button>
-              <button type="submit" class="rounded-2xl bg-[#263e30] px-4 py-2 text-sm font-semibold text-white hover:bg-[#4d7c5e] transition">
-                {{ editingId ? 'Save changes' : 'Add record' }}
+              <!-- <button type="submit" class="rounded-2xl bg-[#263e30] px-4 py-2 text-sm font-semibold text-white hover:bg-[#4d7c5e] transition"> -->
+                <!-- {{ editingId ? 'Save changes' : 'Add record' }} -->
+              <button type="submit" :disabled="isSaving" class="flex items-center gap-2 rounded-2xl bg-[#263e30] px-4 py-2 text-sm font-semibold text-white hover:bg-[#4d7c5e] transition disabled:cursor-not-allowed disabled:opacity-60">
+                <svg v-if="isSaving" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                </svg>
+                {{ isSaving ? 'Saving...' : (editingId ? 'Save changes' : 'Add record') }}
               </button>
             </div>
           </form>
@@ -669,7 +692,16 @@ function statusClass(status) {
           <p v-if="deleteError" class="mb-4 text-sm text-red-600">{{ deleteError }}</p>
           <div class="flex justify-end gap-3">
             <button type="button" @click="cancelDelete" class="rounded-2xl border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Cancel</button>
-            <button type="button" @click="confirmDelete" class="rounded-2xl bg-[#e05c5c] px-4 py-2 text-sm font-semibold text-white hover:bg-[#c44343]">Delete</button>
+
+            <!-- <button type="button" @click="confirmDelete" class="rounded-2xl bg-[#e05c5c] px-4 py-2 text-sm font-semibold text-white hover:bg-[#c44343]">Delete</button> -->
+
+            <button type="button" :disabled="isDeleting" @click="confirmDelete" class="flex items-center gap-2 rounded-2xl bg-[#e05c5c] px-4 py-2 text-sm font-semibold text-white hover:bg-[#c44343] disabled:cursor-not-allowed disabled:opacity-60">
+              <svg v-if="isDeleting" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+              </svg>
+              {{ isDeleting ? 'Deleting...' : 'Delete' }}
+            </button>
           </div>
         </div>
       </div>

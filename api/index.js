@@ -66,6 +66,9 @@ app.get('/api/users', async (req, res) => {
 // to reach the actual database logic. Anyone else gets a 401 (no/bad token)
 // or 403 (valid token, wrong role) before any Supabase call ever runs.
 
+// GET is left open to any request with a valid RSO session — read access
+// doesn't need the extra restriction that writes do below.
+
 app.get('/api/research-entries', verifyToken, requireRole('rso'), async (req, res) => {
   const { data, error } = await supabase
     .from('research_entries')
@@ -80,9 +83,19 @@ app.get('/api/research-entries', verifyToken, requireRole('rso'), async (req, re
 });
 
 app.post('/api/research-entries', verifyToken, requireRole('rso'), async (req, res) => {
+  // pick() only copies over the fields we actually expect on this table.
+  // Without this, req.body gets passed straight to Supabase as-is — anyone
+  // could send extra fields and have them silently written to the row.
+  // This is the same allow-list pattern already used on /api/ips and
+  // /api/startups; research-entries just never got it applied.
+  const payload = pick(req.body, [
+    'title', 'authors', 'co_authors', 'start_date', 'end_date',
+    'isbn', 'scopus_link', 'abstract',
+  ]);
+
   const { data, error } = await supabase
     .from('research_entries')
-    .insert(req.body)
+    .insert(payload)
     .select()
     .single();
 
@@ -95,9 +108,22 @@ app.post('/api/research-entries', verifyToken, requireRole('rso'), async (req, r
 });
 
 app.patch('/api/research-entries/:id', verifyToken, requireRole('rso'), async (req, res) => {
+  // isValidId() makes sure :id is actually a number before it ever reaches
+  // Supabase — without it, a malformed id (like "abc" or an empty string)
+  // would still get sent as a query filter, producing a confusing database
+  // error instead of a clean, expected 400.
+  if (!isValidId(req.params.id)) {
+    return res.status(400).json({ error: 'Invalid id' });
+  }
+
+  const payload = pick(req.body, [
+    'title', 'authors', 'co_authors', 'start_date', 'end_date',
+    'isbn', 'scopus_link', 'abstract',
+  ]);
+
   const { data, error } = await supabase
     .from('research_entries')
-    .update(req.body)
+    .update(payload)
     .eq('id', req.params.id)
     .select()
     .single();
@@ -111,6 +137,10 @@ app.patch('/api/research-entries/:id', verifyToken, requireRole('rso'), async (r
 });
 
 app.delete('/api/research-entries/:id', verifyToken, requireRole('rso'), async (req, res) => {
+  if (!isValidId(req.params.id)) {
+    return res.status(400).json({ error: 'Invalid id' });
+  }
+
   const { error } = await supabase
     .from('research_entries')
     .delete()
@@ -400,20 +430,21 @@ app.patch('/api/applications/:id/approve', verifyToken, requireRole('superadmin'
     return res.status(404).json({ error: 'Application not found' });
   }
 
-  const { error: updateError } = await supabase
-    .from('applications')
-    .update({ status: 'approved' })
-    .eq('id', id);
-
-  if (updateError) {
-    console.error(updateError);
-    return res.status(500).json({ error: updateError.message });
-  }
-
+  // Firebase role claim and the users table insert both happen BEFORE the
+  // application is marked approved. This is deliberate: if either of these
+  // steps fails, the application stays 'pending' instead of getting stuck
+  // in an 'approved' state with no working account behind it. Re-running
+  // approve on a still-pending application is safe; re-running it on one
+  // already marked approved could double-insert into users.
   if (auth) {
-    const normalizedRole = application.role.toLowerCase();
-    await auth.setCustomUserClaims(application.firebase_uid, { role: normalizedRole });
-    await auth.updateUser(application.firebase_uid, { disabled: false });
+    try {
+      const normalizedRole = application.role.toLowerCase();
+      await auth.setCustomUserClaims(application.firebase_uid, { role: normalizedRole });
+      await auth.updateUser(application.firebase_uid, { disabled: false });
+    } catch (err) {
+      console.error('Failed to set Firebase role/enable user:', err);
+      return res.status(500).json({ error: 'Failed to activate Firebase account: ' + err.message });
+    }
   }
 
   const { error: insertError } = await supabase
@@ -428,6 +459,18 @@ app.patch('/api/applications/:id/approve', verifyToken, requireRole('superadmin'
   if (insertError) {
     console.error(insertError);
     return res.status(500).json({ error: insertError.message });
+  }
+
+  // Only mark the application approved once both the Firebase claim and
+  // the users row have actually succeeded.
+  const { error: updateError } = await supabase
+    .from('applications')
+    .update({ status: 'approved' })
+    .eq('id', id);
+
+  if (updateError) {
+    console.error(updateError);
+    return res.status(500).json({ error: updateError.message });
   }
 
   res.json({ message: 'Application approved' });

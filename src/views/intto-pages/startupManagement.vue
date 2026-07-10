@@ -30,7 +30,15 @@ const showProjectModal    = ref(false)     // "Edit Project" modal
 const showAddProjectModal = ref(false)     // "Add Project" modal
 const showDeleteConfirm   = ref(false)     // delete-project confirmation modal
 const deleteCandidate     = ref(null)      // the startup object pending deletion
+
 const deleteError         = ref('')        // error shown in the delete confirmation modal if the API call fails
+// Disables their respective buttons while a request is in flight — without
+// this, a fast double-click fires two concurrent create/update/delete calls,
+// producing duplicates. This was here before and got lost in a merge.
+const isSavingCohort      = ref(false)
+const isSavingProject     = ref(false)
+const isDeleting          = ref(false)
+
 const cohortModalMode     = ref('select')  // 'select' | 'add' — which tab is active inside the cohort modal
 const projectFormError    = ref('')        // validation/API error shared by the add and edit project forms
 const projectLogoError    = ref('')        // logo-specific error (e.g. file too large), shared by both forms
@@ -186,7 +194,9 @@ function nextCohortName() {
  * Creates a new cohort using the auto-generated name from
  * nextCohortName(), then makes it the active cohort and closes the modal.
  */
-async function addCohort() {
+
+
+/* async function addCohort() {
   const name = nextCohortName()
   try {
     const created = await createCohort({ name, value: 0 })
@@ -194,9 +204,7 @@ async function addCohort() {
     activeCohortId.value  = created.id
     showCohortModal.value = false
   } catch (err) {
-    loadError.value = 'Failed to create cohort. ' + err.message
-  }
-}
+    loadError.value = 'Failed to create cohort. ' + err.message} */
 
 /** Resets the "Add Project" form to blank and opens its modal. */
 function openAddProjectModal() {
@@ -293,6 +301,26 @@ async function addProject() {
     return
   }
 
+
+  async function addCohort() {
+  const name = nextCohortName()
+  isSavingCohort.value = true
+  try {
+    const created = await createCohort({ name, value: 0 })
+    localCohorts.value.push(created)
+    activeCohortId.value  = created.id
+    showCohortModal.value = false
+  } catch (err) {
+    loadError.value = 'Failed to create cohort. ' + err.message
+  } finally {
+    isSavingCohort.value = false
+  }
+}
+
+
+//-----july 10- Updated to try and eliminate duplicate inputs
+
+  isSavingProject.value = true
   try {
     const created = await createStartup({
       cohortId:         activeCohortId.value,
@@ -309,6 +337,8 @@ async function addProject() {
     showAddProjectModal.value = false
   } catch (err) {
     projectFormError.value = 'Failed to create project. ' + err.message
+  } finally {
+    isSavingProject.value = false
   }
 }
 
@@ -351,8 +381,34 @@ function cancelDelete() {
  * modal open with an error message if the API call fails (so nothing is
  * removed locally unless the delete actually succeeded).
  */
+
+
+
+// async function confirmDelete() {
+//   if (!deleteCandidate.value) return
+
+//   try {
+//     await deleteStartup(deleteCandidate.value.id)
+//     localStartups.value = localStartups.value.filter(s => s.id !== deleteCandidate.value.id)
+
+//     const cohort = localCohorts.value.find(c => c.id === deleteCandidate.value.cohortId)
+//     if (cohort) cohort.value -= 1
+
+//     if (activeProjectId.value === deleteCandidate.value.id) {
+//       activeProjectId.value = null
+//     }
+
+//     cancelDelete()
+//   } catch (err) {
+//     deleteError.value = 'Failed to delete project. ' + err.message
+//   }
+// }
+
+
+//-----july 10- Updated to try and eliminate duplicate inputs
 async function confirmDelete() {
   if (!deleteCandidate.value) return
+  isDeleting.value = true
 
   try {
     await deleteStartup(deleteCandidate.value.id)
@@ -368,6 +424,8 @@ async function confirmDelete() {
     cancelDelete()
   } catch (err) {
     deleteError.value = 'Failed to delete project. ' + err.message
+  } finally {
+    isDeleting.value = false
   }
 }
 
@@ -393,6 +451,20 @@ async function saveProject() {
     return
   }
 
+//   try {
+//     const updated = await updateStartup(editForm.value.id, { ...editForm.value })
+//     const idx = localStartups.value.findIndex(s => s.id === editForm.value.id)
+//     if (idx !== -1) {
+//       localStartups.value[idx] = updated
+//     }
+//     showProjectModal.value = false
+//   } catch (err) {
+//     projectFormError.value = 'Failed to save project. ' + err.message
+//   }
+// }
+
+//-----july 10- Updated to try and eliminate duplicate inputs-------//
+isSavingProject.value = true
   try {
     const updated = await updateStartup(editForm.value.id, { ...editForm.value })
     const idx = localStartups.value.findIndex(s => s.id === editForm.value.id)
@@ -402,6 +474,8 @@ async function saveProject() {
     showProjectModal.value = false
   } catch (err) {
     projectFormError.value = 'Failed to save project. ' + err.message
+  } finally {
+    isSavingProject.value = false
   }
 }
 </script>
@@ -655,10 +729,22 @@ async function saveProject() {
       <div v-if="cohortModalMode === 'add'" class="space-y-3">
         <p class="text-sm text-slate-600">New cohort name will be:</p>
         <div class="rounded-2xl border border-gray-200 bg-gray-100 px-4 py-3 text-sm text-black">{{ nextCohortName() }}</div>
-        <button
+        <!-- <button
           @click="addCohort"
           class="w-full rounded-2xl bg-[#263e30] py-2 text-sm font-semibold text-white hover:bg-[#4d7c5e] transition"
-        >Add Cohort</button>
+        >Add Cohort</button> -->
+        <!--july 10-[bug fix]: duplicate entries on double click-->
+        <button
+          @click="addCohort"
+          :disabled="isSavingCohort"
+          class="w-full flex items-center justify-center gap-2 rounded-2xl bg-[#263e30] py-2 text-sm font-semibold text-white hover:bg-[#4d7c5e] transition disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <svg v-if="isSavingCohort" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+          </svg>
+          {{ isSavingCohort ? 'Adding...' : 'Add Cohort' }}
+        </button>
       </div>
     </div>
   </div>
@@ -718,10 +804,22 @@ async function saveProject() {
         </div>
       </div>
       <p v-if="projectFormError" class="text-sm text-red-600">{{ projectFormError }}</p>
-      <button
+      <!-- <button
         @click="addProject"
         class="w-full rounded-2xl bg-[#263e30] py-2 text-sm font-semibold text-white hover:bg-[#4d7c5e] transition"
-      >Add Project</button>
+      >Add Project</button> -->
+      <!--july 10-[bug fix]: duplicate entries on double click-->
+      <button
+        @click="addProject"
+        :disabled="isSavingProject"
+        class="w-full flex items-center justify-center gap-2 rounded-2xl bg-[#263e30] py-2 text-sm font-semibold text-white hover:bg-[#4d7c5e] transition disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <svg v-if="isSavingProject" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+        </svg>
+        {{ isSavingProject ? 'Adding...' : 'Add Project' }}
+      </button>
     </div>
   </div>
 
@@ -770,10 +868,23 @@ async function saveProject() {
         </div>
       </div>
       <p v-if="projectFormError" class="text-sm text-red-600">{{ projectFormError }}</p>
-      <button
+      <!-- <button
         @click="saveProject"
         class="w-full rounded-2xl bg-[#263e30] py-2 text-sm font-semibold text-white hover:bg-[#4d7c5e] transition"
-      >Save Changes</button>
+      >Save Changes</button> -->
+
+      <!--july 10-[bug fix]: duplicate entries on double click-->
+      <button
+        @click="saveProject"
+        :disabled="isSavingProject"
+        class="w-full flex items-center justify-center gap-2 rounded-2xl bg-[#263e30] py-2 text-sm font-semibold text-white hover:bg-[#4d7c5e] transition disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <svg v-if="isSavingProject" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+        </svg>
+        {{ isSavingProject ? 'Saving...' : 'Save Changes' }}
+      </button>
     </div>
   </div>
 
@@ -784,8 +895,17 @@ async function saveProject() {
       <p class="text-sm text-slate-600">Are you sure you want to delete <strong>{{ deleteCandidate?.name }}</strong>? This action cannot be undone.</p>
       <p v-if="deleteError" class="text-sm text-red-600">{{ deleteError }}</p>
       <div class="flex justify-end gap-3">
+        <!-- <button type="button" @click="cancelDelete" class="rounded-2xl border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Cancel</button>
+        <button type="button" @click="confirmDelete" class="rounded-2xl bg-[#e05c5c] px-4 py-2 text-sm font-semibold text-white hover:bg-[#c44343]">Delete</button> -->
+        <!--july 10-[bug fix]: duplicate entries on double click-->
         <button type="button" @click="cancelDelete" class="rounded-2xl border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Cancel</button>
-        <button type="button" @click="confirmDelete" class="rounded-2xl bg-[#e05c5c] px-4 py-2 text-sm font-semibold text-white hover:bg-[#c44343]">Delete</button>
+        <button type="button" :disabled="isDeleting" @click="confirmDelete" class="flex items-center gap-2 rounded-2xl bg-[#e05c5c] px-4 py-2 text-sm font-semibold text-white hover:bg-[#c44343] disabled:cursor-not-allowed disabled:opacity-60">
+          <svg v-if="isDeleting" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+          </svg>
+          {{ isDeleting ? 'Deleting...' : 'Delete' }}
+        </button>
       </div>
     </div>
   </div>
