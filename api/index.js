@@ -12,7 +12,14 @@ try {
 
 const app = express();
 
-app.use(express.json());
+//----------------------------- app.use(express.json());-------------------------------------------
+/* With no limit specified, Express's default body-size cap is 100kb — nowhere close to 2.7MB. 
+This middleware rejects the request with 413 Payload Too Large before it ever reaches your route handler, 
+before verifyToken/requireRole even run. 
+The 2MB check on the frontend was never actually enforced against anything real on the backend — it just happened 
+to be nowhere near strict enough for whatever the real, undocumented limit turned out to be. */
+
+app.use(express.json({ limit: '5mb' }));
 
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', process.env.FRONTEND_URL || '*');
@@ -52,6 +59,17 @@ app.get('/api/users', verifyToken, requireRole('superadmin'), async (req, res) =
   res.json({ users: data });
 });
 
+// Get all research entries
+
+// RSO-only routes below: verifyToken checks the request carries a real,
+// currently-valid Firebase login token; requireRole('rso') then checks that
+// token's role claim is specifically 'rso' before the request is allowed
+// to reach the actual database logic. Anyone else gets a 401 (no/bad token)
+// or 403 (valid token, wrong role) before any Supabase call ever runs.
+
+// GET is left open to any request with a valid RSO session — read access
+// doesn't need the extra restriction that writes do below.
+
 // Research entries - RSO full CRUD, INTTO read-only
 app.get('/api/research-entries', verifyToken, requireRole('rso', 'intto'), async (req, res) => {
   const { data, error } = await supabase
@@ -67,9 +85,19 @@ app.get('/api/research-entries', verifyToken, requireRole('rso', 'intto'), async
 });
 
 app.post('/api/research-entries', verifyToken, requireRole('rso'), async (req, res) => {
+  // pick() only copies over the fields we actually expect on this table.
+  // Without this, req.body gets passed straight to Supabase as-is — anyone
+  // could send extra fields and have them silently written to the row.
+  // This is the same allow-list pattern already used on /api/ips and
+  // /api/startups; research-entries just never got it applied.
+  const payload = pick(req.body, [
+    'title', 'authors', 'co_authors', 'start_date', 'end_date',
+    'isbn', 'scopus_link', 'abstract',
+  ]);
+
   const { data, error } = await supabase
     .from('research_entries')
-    .insert(req.body)
+    .insert(payload)
     .select()
     .single();
 
@@ -82,9 +110,22 @@ app.post('/api/research-entries', verifyToken, requireRole('rso'), async (req, r
 });
 
 app.patch('/api/research-entries/:id', verifyToken, requireRole('rso'), async (req, res) => {
+  // isValidId() makes sure :id is actually a number before it ever reaches
+  // Supabase — without it, a malformed id (like "abc" or an empty string)
+  // would still get sent as a query filter, producing a confusing database
+  // error instead of a clean, expected 400.
+  if (!isValidId(req.params.id)) {
+    return res.status(400).json({ error: 'Invalid id' });
+  }
+
+  const payload = pick(req.body, [
+    'title', 'authors', 'co_authors', 'start_date', 'end_date',
+    'isbn', 'scopus_link', 'abstract',
+  ]);
+
   const { data, error } = await supabase
     .from('research_entries')
-    .update(req.body)
+    .update(payload)
     .eq('id', req.params.id)
     .select()
     .single();
@@ -98,6 +139,10 @@ app.patch('/api/research-entries/:id', verifyToken, requireRole('rso'), async (r
 });
 
 app.delete('/api/research-entries/:id', verifyToken, requireRole('rso'), async (req, res) => {
+  if (!isValidId(req.params.id)) {
+    return res.status(400).json({ error: 'Invalid id' });
+  }
+
   const { error } = await supabase
     .from('research_entries')
     .delete()
@@ -110,6 +155,11 @@ app.delete('/api/research-entries/:id', verifyToken, requireRole('rso'), async (
 
   res.json({ success: true });
 });
+
+
+// INTTO-only routes below: same pattern as the RSO routes above, but
+// requireRole('intto') instead — these are the classification, cohort,
+// startup, and IP record routes, all owned by the INTTO portal.
 
 // Classifications - INTTO lookup table (read-only route for now, no writes exist yet)
 app.get('/api/classifications', verifyToken, requireRole('rso', 'intto'), async (req, res) => {
@@ -386,20 +436,21 @@ app.patch('/api/applications/:id/approve', verifyToken, requireRole('superadmin'
     return res.status(404).json({ error: 'Application not found' });
   }
 
-  const { error: updateError } = await supabase
-    .from('applications')
-    .update({ status: 'approved' })
-    .eq('id', id);
-
-  if (updateError) {
-    console.error(updateError);
-    return res.status(500).json({ error: updateError.message });
-  }
-
+  // Firebase role claim and the users table insert both happen BEFORE the
+  // application is marked approved. This is deliberate: if either of these
+  // steps fails, the application stays 'pending' instead of getting stuck
+  // in an 'approved' state with no working account behind it. Re-running
+  // approve on a still-pending application is safe; re-running it on one
+  // already marked approved could double-insert into users.
   if (auth) {
-    const normalizedRole = application.role.toLowerCase();
-    await auth.setCustomUserClaims(application.firebase_uid, { role: normalizedRole });
-    await auth.updateUser(application.firebase_uid, { disabled: false });
+    try {
+      const normalizedRole = application.role.toLowerCase();
+      await auth.setCustomUserClaims(application.firebase_uid, { role: normalizedRole });
+      await auth.updateUser(application.firebase_uid, { disabled: false });
+    } catch (err) {
+      console.error('Failed to set Firebase role/enable user:', err);
+      return res.status(500).json({ error: 'Failed to activate Firebase account: ' + err.message });
+    }
   }
 
   const { error: insertError } = await supabase
@@ -414,6 +465,18 @@ app.patch('/api/applications/:id/approve', verifyToken, requireRole('superadmin'
   if (insertError) {
     console.error(insertError);
     return res.status(500).json({ error: insertError.message });
+  }
+
+  // Only mark the application approved once both the Firebase claim and
+  // the users row have actually succeeded.
+  const { error: updateError } = await supabase
+    .from('applications')
+    .update({ status: 'approved' })
+    .eq('id', id);
+
+  if (updateError) {
+    console.error(updateError);
+    return res.status(500).json({ error: updateError.message });
   }
 
   res.json({ message: 'Application approved' });

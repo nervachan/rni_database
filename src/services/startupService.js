@@ -1,4 +1,3 @@
-// rni_database/src/services/startupService.js
 import api from './api'
 
 // Convert database row to client-friendly cohort object
@@ -38,7 +37,10 @@ function toDbStartupPayload(payload) {
   return dbPayload
 }
 
-// Get the list of cohorts with the count of startups in each cohort
+// Get the list of cohorts with the count of startups in each cohort.
+// err.message is already a clean, specific reason by the time it gets here
+// (api.js's response interceptor unwraps the backend's real error text) —
+// we just add which operation failed on top of that, not a status code.
 export async function getCohorts() {
   let cohorts, startups
   try {
@@ -49,8 +51,7 @@ export async function getCohorts() {
     cohorts = cohortsRes.data.cohorts
     startups = startupsRes.data.startups
   } catch (err) {
-    const status = err.response?.status ?? 'network error'
-    throw new Error(`Failed to load cohorts (${status})`)
+    throw new Error(`Failed to load cohorts: ${err.message}`)
   }
 
   const startupCountByCohortId = new Map()
@@ -67,8 +68,7 @@ export async function getStartups() {
     const { data } = await api.get('/startups')
     startups = data.startups
   } catch (err) {
-    const status = err.response?.status ?? 'network error'
-    throw new Error(`Failed to load startups (${status})`)
+    throw new Error(`Failed to load startups: ${err.message}`)
   }
 
   return startups.map(toClientStartup)
@@ -93,8 +93,7 @@ export async function createCohort(payload) {
     const { data } = await api.post('/cohorts', toDbCohortPayload(payload))
     cohort = data.cohort
   } catch (err) {
-    const status = err.response?.status ?? 'network error'
-    throw new Error(`Failed to create cohort (${status})`)
+    throw new Error(`Failed to create cohort: ${err.message}`)
   }
 
   return { id: cohort.id, name: cohort.cohort_name, value: 0 }
@@ -107,8 +106,7 @@ export async function createStartup(payload) {
     const { data } = await api.post('/startups', toDbStartupPayload(payload))
     startup = data.startup
   } catch (err) {
-    const status = err.response?.status ?? 'network error'
-    throw new Error(`Failed to create startup (${status})`)
+    throw new Error(`Failed to create startup: ${err.message}`)
   }
 
   return toClientStartup(startup)
@@ -121,8 +119,7 @@ export async function updateStartup(id, payload) {
     const { data } = await api.patch(`/startups/${id}`, toDbStartupPayload(payload))
     startup = data.startup
   } catch (err) {
-    const status = err.response?.status ?? 'network error'
-    throw new Error(`Failed to update startup (${status})`)
+    throw new Error(`Failed to update startup: ${err.message}`)
   }
 
   return toClientStartup(startup)
@@ -133,8 +130,7 @@ export async function deleteStartup(id) {
   try {
     await api.delete(`/startups/${id}`)
   } catch (err) {
-    const status = err.response?.status ?? 'network error'
-    throw new Error(`Failed to delete startup (${status})`)
+    throw new Error(`Failed to delete startup: ${err.message}`)
   }
   return true
 }

@@ -6,6 +6,11 @@ import api from './api'
 // It also manages the mapping between classification IDs and names, which are stored in a separate classifications table in the database.
 let classificationsCache = null
 
+// The 'ips' table only stores a classification_id (a number), not the
+// human-readable name ('Patent', 'Trademark', etc.) — that lookup lives in a
+// separate 'classifications' table. Rather than re-fetching and re-joining
+// that table on every single IP record read, we fetch it once per page load
+// and cache both directions (id -> name, and name -> id) in memory.
 async function getClassificationsMap() {
   if (classificationsCache) return classificationsCache
 
@@ -25,10 +30,18 @@ async function getClassificationsMap() {
   return classificationsCache
 }
 
+// Clears the cache above. Nothing calls this yet, since there's no UI for
+// editing classifications today — it's here so that whenever that feature
+// gets built, whoever builds it just has to call this after a save/delete
+// instead of rediscovering that the cache exists and needs clearing.
 export function invalidateClassificationsCache() {
   classificationsCache = null
 }
 
+// Converts a raw database row (snake_case columns, classification_id as a
+// number) into the shape the Vue components actually work with (camelCase,
+// classification as a readable name). Nothing outside this file should ever
+// see a raw database row directly.
 function toClientRecord(row, classificationsById) {
   return {
     id:             row.id,
@@ -41,6 +54,11 @@ function toClientRecord(row, classificationsById) {
   }
 }
 
+// The reverse of toClientRecord() — takes whatever a form/component sends
+// (only the fields that actually changed) and builds the database's expected
+// snake_case shape, converting the classification name back to its id.
+// Fields the caller didn't set are left out entirely rather than sent as
+// null/undefined, so a partial edit doesn't accidentally wipe other columns.
 function toDbPayload(record, classificationsByName) {
   const payload = {}
   if (record.title          !== undefined) payload.title             = record.title
@@ -52,6 +70,8 @@ function toDbPayload(record, classificationsByName) {
   return payload
 }
 
+// Fetches every IP record. Requires the classifications map first so each
+// row can be converted with a readable classification name attached.
 export async function getIpRecords() {
   const { byId } = await getClassificationsMap()
 
@@ -67,6 +87,10 @@ export async function getIpRecords() {
   return ips.map(row => toClientRecord(row, byId))
 }
 
+// Creates a new IP record. The backend returns the row as Supabase actually
+// stored it (including the generated id), which we convert back to client
+// shape before returning — so the caller can push the real record straight
+// into its local list without a second fetch.
 export async function createIpRecord(payload) {
   const { byId, byName } = await getClassificationsMap()
 
@@ -82,6 +106,8 @@ export async function createIpRecord(payload) {
   return toClientRecord(ip, byId)
 }
 
+// Updates an existing IP record by id. Same round-trip pattern as create:
+// send only the changed fields, get back the full updated row.
 export async function updateIpRecord(id, payload) {
   const { byId, byName } = await getClassificationsMap()
 
@@ -97,6 +123,8 @@ export async function updateIpRecord(id, payload) {
   return toClientRecord(ip, byId)
 }
 
+// Deletes an IP record by id. No response body needed — if this doesn't
+// throw, the delete succeeded.
 export async function deleteIpRecord(id) {
   try {
     await api.delete(`/ips/${id}`)

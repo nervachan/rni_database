@@ -71,7 +71,42 @@ const router = createRouter({
 
 import { useAuthStore } from '../stores/auth'
 
-router.beforeEach(async (to, from, next) => {
+// router.beforeEach(async (to, from, next) => {
+//   const authStore = useAuthStore()
+
+//   const isSuperAdminSection = to.path.startsWith('/super-admin/')
+//   const isRsoSection = to.path.startsWith('/rso-admin/')
+//   const isInttoSection = to.path.startsWith('/intto-admin/')
+
+//   if (!(isSuperAdminSection || isRsoSection || isInttoSection)) {
+//     next()
+//     return
+//   }
+
+//   await authStore.waitForAuthReady()
+
+//   if (!authStore.isLoggedIn) {
+//     next(isSuperAdminSection ? '/super-admin' : '/login')
+//     return
+//   }
+
+//   if (isSuperAdminSection && authStore.userRole !== 'superadmin') {
+//     next('/super-admin')
+//     return
+//   }
+
+//   if ((isRsoSection || isInttoSection) && !['rso', 'intto'].includes(authStore.userRole)) {
+//     next('/login')
+//     return
+//   }
+
+//   next()
+// })
+
+/*router/index.js's beforeEach guard uses the older callback-style API (next(...)), 
+which your version of vue-router (^5.1.0) now wants replaced with returning the redirect value directly. */
+
+router.beforeEach(async (to, from) => {
   const authStore = useAuthStore()
 
   const isSuperAdminSection = to.path.startsWith('/super-admin/')
@@ -79,28 +114,24 @@ router.beforeEach(async (to, from, next) => {
   const isInttoSection = to.path.startsWith('/intto-admin/')
 
   if (!(isSuperAdminSection || isRsoSection || isInttoSection)) {
-    next()
-    return
+    return true
   }
 
   await authStore.waitForAuthReady()
 
   if (!authStore.isLoggedIn) {
-    next(isSuperAdminSection ? '/super-admin' : '/login')
-    return
+    return isSuperAdminSection ? '/super-admin' : '/login'
   }
 
   if (isSuperAdminSection && authStore.userRole !== 'superadmin') {
-    next('/super-admin')
-    return
+    return '/super-admin'
   }
 
   if ((isRsoSection || isInttoSection) && !['rso', 'intto'].includes(authStore.userRole)) {
-    next('/login')
-    return
+    return '/login'
   }
 
-  next()
+  return true
 })
 
 export default router
