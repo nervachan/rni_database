@@ -2,22 +2,26 @@
 
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import {EyeIcon, EyeSlashIcon} from '@heroicons/vue/24/outline';
+import { EyeIcon, EyeSlashIcon } from '@heroicons/vue/24/outline';
+import { useAuthStore } from '../stores/auth';
 
 const router = useRouter();
+const authStore = useAuthStore();
 const email = ref('');
-const emailError = ref ('');
+const emailError = ref('');
 const password = ref('');
 const passwordError = ref('');
 const loginRole = ref('RSO');
+const loginError = ref('');
+const isSubmitting = ref(false);
 
-function handleLogin() {
+async function handleLogin() {
     if (email.value.trim() === '') {
         emailError.value = 'Email must not be empty';
         return;
     }
         emailError.value = '';
-    
+
     if (!email.value.includes('@')) {
         emailError.value = 'Invalid Email';
         return;
@@ -29,6 +33,27 @@ function handleLogin() {
         return;
     }
         passwordError.value = '';
+
+    loginError.value = '';
+    isSubmitting.value = true;
+
+    try {
+        const selectedRole = loginRole.value.toLowerCase();
+        const actualRole = await authStore.login(email.value, password.value, selectedRole);
+
+        if (!['rso', 'intto'].includes(actualRole)) {
+            loginError.value = 'This account is not authorized for RSO or INTTO access.';
+            await authStore.logout();
+            return;
+        }
+
+        router.push(`/${selectedRole}-admin/dashboard`);
+    } catch (err) {
+        loginError.value = 'Invalid email or password.';
+        password.value = '';
+    } finally {
+        isSubmitting.value = false;
+    }
 }
 
 function goToRegister() {
@@ -43,7 +68,7 @@ const showPassword = ref(false);
     <div class="LoginPage bg-gradient-to-b from-[#203429] to-[#ffffff] flex items-center justify-center min-h-screen">
 
         <div class="LoginCard gap-4 bg-gradient-to-b from-[#9abba4] to-[#ffffff] flex flex-col items-center justify-center rounded-lg shadow-xl p-5 sm:p-8 w-full max-w-[400px] mx-4">
-            
+
             <div class="LogoAndName flex flex-col items-center gap-4">
                 <img class="DatabaseLogo h-24 sm:h-[150px]" src="../assets/UC_Official_Seal.png">
                 <h2 class="text-xl font-bold text-[#263e30] text-center">INTTO and RSO Database</h2>
@@ -51,8 +76,8 @@ const showPassword = ref(false);
 
             <div class="RoleToggle relative flex w-full rounded-full bg-gray-100 p-1 shadow-md">
                 <span
-                    class="absolute inset-y-1 w-[calc(50%-0.25rem)] rounded-full bg-[#263e30] transition-transform duration-200 ease-out"
-                    :class="loginRole === 'INTTO' ? 'translate-x-[calc(100%+0.5rem)]' : 'translate-x-0'"
+                    class="absolute top-1 bottom-1 left-1 rounded-full bg-[#263e30] transition-transform duration-200 ease-out"
+                    :style="{ width: 'calc(50% - 0.25rem)', transform: loginRole === 'INTTO' ? 'translateX(100%)' : 'translateX(0)' }"
                 ></span>
                 <button
                     type="button"
@@ -77,10 +102,10 @@ const showPassword = ref(false);
                 <p v-if="emailError" class="text-red-500 text-sm">{{ emailError }}</p>
 
                 <div class="relative w-full">
-                    <input 
+                    <input
                         v-model="password"
-                        :type="showPassword ? 'text' : 'password'" 
-                        placeholder="Password" 
+                        :type="showPassword ? 'text' : 'password'"
+                        placeholder="Password"
                         class="bg-gray-100 rounded-md shadow-md p-2 w-full hover:outline-none hover:ring-2 hover:ring-[#263e30] focus:outline-none focus:ring-2 focus:ring-[#263e30]"
                     >
                     <p v-if="passwordError" class="text-sm text-red-500">{{ passwordError }}</p>
@@ -96,8 +121,12 @@ const showPassword = ref(false);
                 </div>
             </div>
 
+            <p v-if="loginError" class="text-red-500 text-sm text-center">{{ loginError }}</p>
+
             <div class="Buttons flex-row gap-4 flex">
-                <button class="rounded-md bg-[#2e4e3c] text-white p-2 w-28 hover:opacity-80" @click="handleLogin">Login</button>
+                <button class="rounded-md bg-[#2e4e3c] text-white p-2 w-28 hover:opacity-80 disabled:opacity-50" :disabled="isSubmitting" @click="handleLogin">
+                    {{ isSubmitting ? 'Logging in...' : 'Login' }}
+                </button>
                 <button class="rounded-md bg-[#2e4e3c] text-white p-2 w-28 hover:opacity-80" @click="goToRegister">Sign Up</button>
             </div>
 
