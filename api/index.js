@@ -1,3 +1,4 @@
+// rni_database/api/index.js
 const express = require('express');
 const { supabase } = require('../supabaseClient.cjs');
 const { verifyToken, requireRole } = require('../authMiddleware.cjs');
@@ -44,8 +45,8 @@ app.get('/api/test', (req, res) => {
   res.json({ message: 'Backend is working' });
 });
 
-// Get all users
-app.get('/api/users', async (req, res) => {
+// Get all users - superadmin only
+app.get('/api/users', verifyToken, requireRole('superadmin'), async (req, res) => {
   const { data, error } = await supabase
     .from('users')
     .select('*');
@@ -69,7 +70,8 @@ app.get('/api/users', async (req, res) => {
 // GET is left open to any request with a valid RSO session — read access
 // doesn't need the extra restriction that writes do below.
 
-app.get('/api/research-entries', verifyToken, requireRole('rso'), async (req, res) => {
+// Research entries - RSO full CRUD, INTTO read-only
+app.get('/api/research-entries', verifyToken, requireRole('rso', 'intto'), async (req, res) => {
   const { data, error } = await supabase
     .from('research_entries')
     .select('*');
@@ -159,7 +161,8 @@ app.delete('/api/research-entries/:id', verifyToken, requireRole('rso'), async (
 // requireRole('intto') instead — these are the classification, cohort,
 // startup, and IP record routes, all owned by the INTTO portal.
 
-app.get('/api/classifications', verifyToken, requireRole('intto'), async (req, res) => {
+// Classifications - INTTO lookup table (read-only route for now, no writes exist yet)
+app.get('/api/classifications', verifyToken, requireRole('rso', 'intto'), async (req, res) => {
   const { data, error } = await supabase
     .from('classifications')
     .select('*');
@@ -172,7 +175,8 @@ app.get('/api/classifications', verifyToken, requireRole('intto'), async (req, r
   res.json({ classifications: data });
 });
 
-app.get('/api/cohorts', verifyToken, requireRole('intto'), async (req, res) => {
+// Cohorts - treated as INTTO-owned (used to group startups); confirm with supervisor
+app.get('/api/cohorts', verifyToken, requireRole('rso', 'intto'), async (req, res) => {
   const { data, error } = await supabase
     .from('cohorts')
     .select('*');
@@ -202,7 +206,8 @@ app.post('/api/cohorts', verifyToken, requireRole('intto'), async (req, res) => 
   res.json({ cohort: data });
 });
 
-app.get('/api/startups', verifyToken, requireRole('intto'), async (req, res) => {
+// Startups - INTTO full CRUD, RSO read-only
+app.get('/api/startups', verifyToken, requireRole('rso', 'intto'), async (req, res) => {
   const { data, error } = await supabase
     .from('startups')
     .select('*');
@@ -272,7 +277,8 @@ app.delete('/api/startups/:id', verifyToken, requireRole('intto'), async (req, r
   res.json({ success: true });
 });
 
-app.get('/api/ips', verifyToken, requireRole('intto'), async (req, res) => {
+// IPs - INTTO full CRUD, RSO read-only
+app.get('/api/ips', verifyToken, requireRole('rso', 'intto'), async (req, res) => {
   const { data, error } = await supabase
     .from('ips')
     .select('*');
@@ -365,7 +371,7 @@ app.get('/api/applications', verifyToken, requireRole('superadmin'), async (req,
   res.json(shaped);
 });
 
-// Submit an application
+// Submit an application - public, no auth required (this is registration)
 app.post('/api/applications', async (req, res) => {
   const { email, password, firstName, lastName, role } = req.body;
 
@@ -511,8 +517,8 @@ app.patch('/api/applications/:id/reject', verifyToken, requireRole('superadmin')
   res.json({ message: 'Application rejected' });
 });
 
-// Logs
-app.get('/api/logs', (req, res) => {
+// Logs - superadmin only
+app.get('/api/logs', verifyToken, requireRole('superadmin'), (req, res) => {
   const logs = [
     { id: 1, timestamp: '2026-06-30T14:30:00', action: 'User Login', name: 'Maria Santos', email: 'maria.santos@example.com', role: 'INTTO', severity: 'normal' },
     { id: 2, timestamp: '2026-06-29T10:15:00', action: 'Profile Updated', name: 'Rafael Lim', email: 'rafael.lim@example.com', role: 'RSO', severity: 'warning' },
@@ -524,8 +530,8 @@ app.get('/api/logs', (req, res) => {
   res.json(logs);
 });
 
-// Notifications
-app.get('/api/notifications', (req, res) => {
+// Notifications - superadmin only
+app.get('/api/notifications', verifyToken, requireRole('superadmin'), (req, res) => {
   const notifications = [
     { id: 1, text: 'New application received from Ana Dela Cruz.', createdAt: '2026-06-30T14:30:00' },
     { id: 2, text: 'Application from Lorenzo Rivera was approved.', createdAt: '2026-06-30T11:15:00' },

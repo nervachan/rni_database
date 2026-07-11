@@ -77,7 +77,8 @@ onMounted(loadData)
  */
 const allGenres = computed(() => {
   const inCohort = localStartups.value.filter(s => s.cohortId === activeCohortId.value)
-  return ['All', ...new Set(inCohort.map(s => s.genre))]
+  const genres = inCohort.map(s => s.genre.trim()).filter(Boolean)
+  return ['All', ...new Set(genres)]
 })
 
 /**
@@ -88,6 +89,29 @@ const allGenres = computed(() => {
 const genreOptions = computed(() =>
   Array.from(new Set(localStartups.value.map(s => s.genre.trim()).filter(Boolean))).sort()
 )
+
+// Controls visibility of the custom genre-suggestion dropdown (replaces the
+// native <datalist>, which can't be styled and had a duplicate-id bug when
+// both the Add and Edit forms were open in the same DOM).
+const showAddGenreSuggestions  = ref(false)
+const showEditGenreSuggestions = ref(false)
+
+/** Genres from genreOptions matching the currently typed text, case-insensitive. */
+function matchingGenres(query) {
+  const q = query.trim().toLowerCase()
+  if (!q) return genreOptions.value
+  return genreOptions.value.filter(g => g.toLowerCase().includes(q))
+}
+
+function chooseAddGenre(genre) {
+  newProject.value.genre = genre
+  showAddGenreSuggestions.value = false
+}
+
+function chooseEditGenre(genre) {
+  editForm.value.genre = genre
+  showEditGenreSuggestions.value = false
+}
 
 /**
  * Startups in the active cohort matching the current name search and
@@ -167,6 +191,19 @@ function selectCohort(id) {
 /** Selects a project to display in column 3. */
 function selectProject(id) {
   activeProjectId.value = id
+}
+
+/**
+ * Opens a startup from the "Recent Startups" list. Unlike selectProject()
+ * above, this can jump to a startup outside the currently active cohort
+ * (recentStartups spans all cohorts, newest first) — so it switches
+ * activeCohortId too, keeping columns 1–3 all pointed at the same startup
+ * instead of showing its detail panel while column 1/2 still highlight a
+ * different cohort.
+ */
+function selectRecentStartup(startup) {
+  activeCohortId.value  = startup.cohortId
+  activeProjectId.value = startup.id
 }
 
 /** Opens the cohort modal, always starting on the "select" tab. */
@@ -482,7 +519,7 @@ isSavingProject.value = true
 
 <template>
   <div class="h-screen bg-gray-100 text-white p-4 sm:p-6">
-    <div class="mx-auto max-w-7xl space-y-6">
+    <div class="w-full space-y-6">
 
       <div v-if="loadError" class="bg-red-50 border border-red-200 text-red-700 text-xs sm:text-sm px-4 py-3 rounded-xl">
         {{ loadError }}
@@ -500,7 +537,7 @@ isSavingProject.value = true
       <div class="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-[280px_1fr_1fr] lg:grid-cols-[280px_1fr] items-start">
 
         <!-- Column 1: Cohorts -->
-        <section class="rounded-xl bg-white p-5 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] self-start">
+        <section class="rounded-xl bg-white p-5 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] self-start min-w-0">
           <div class="flex items-center justify-between rounded-xl bg-[#263e30] px-4 py-4 gap-2">
             <span class="text-sm font-semibold uppercase tracking-[0.24em] text-white">All Cohorts</span>
             <button
@@ -530,7 +567,7 @@ isSavingProject.value = true
         </section>
 
         <!-- Column 2: Projects -->
-        <section class="rounded-xl bg-white p-5 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] self-start">
+        <section class="rounded-xl bg-white p-5 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] self-start min-w-0">
 
           <div class="flex items-center justify-between rounded-xl bg-[#263e30] px-4 py-4 gap-2"> <!-- Projects Header -->
             <span class="text-sm font-semibold uppercase tracking-[0.24em] text-white">Projects</span>
@@ -542,20 +579,25 @@ isSavingProject.value = true
 
 
           <div class="grid gap-3 sm:grid-cols-3 mb-4 p-3"> <!-- Search and Filters -->
-            <input
-              v-model="projectSearch"
-              placeholder="Search project..."
-              class="w-full rounded-[2rem] border border-gray-200 bg-gray-100 px-4 py-3 text-sm text-black outline-none focus:border-[#263e30]"
-            />
-            <select
-              v-model="genreSearch"
-              class="w-full rounded-[2rem] border border-gray-200 bg-gray-100 px-4 py-3 text-sm outline-none focus:border-[#263e30] text-black"
-            >
-              <option v-for="g in allGenres" :key="g" :value="g">{{ g }}</option>
-              <option value="" disabled selected hidden> Genre...</option>
-            </select>
-            <div class="flex items-center gap-2">
-              <label class="min-w-max text-xs text-neutral-600">Display</label>
+            <div class="flex flex-col gap-1">
+              <label class="text-xs text-neutral-600">Project</label>
+              <input
+                v-model="projectSearch"
+                placeholder="Search project..."
+                class="w-full rounded-[2rem] border border-gray-200 bg-gray-100 px-4 py-3 text-sm text-black outline-none focus:border-[#263e30]"
+              />
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-xs text-neutral-600">Genre</label>
+              <select
+                v-model="genreSearch"
+                class="w-full rounded-[2rem] border border-gray-200 bg-gray-100 px-4 py-3 text-sm outline-none focus:border-[#263e30] text-black"
+              >
+                <option v-for="g in allGenres" :key="g" :value="g">{{ g }}</option>
+              </select>
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-xs text-neutral-600">Display</label>
               <select
                 v-model="itemsPerPage"
                 class="w-full rounded-[2rem] border border-gray-200 bg-gray-100 px-4 py-3 text-sm outline-none focus:border-[#263e30] text-black"
@@ -626,22 +668,26 @@ isSavingProject.value = true
         </section>
 
         <!-- Column 3: Detail -->
-        <section class="rounded-xl bg-white shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] md:h-[70vh] overflow-hidden"> <!-- Detail Section -->
+        <section class="rounded-xl bg-white shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] md:h-[70vh] overflow-hidden min-w-0"> <!-- Detail Section -->
 
           <div class="col3 h-full overflow-y-auto pr-2 rounded-[2rem]">
           <template v-if="activeProject"> 
             <div class="flex items-center justify-between gap-4 p-5 md:sticky md:top-0 bg-white rounded-t-[2rem] z-10">
-              <div class="flex items-center gap-4">
-                <div class="h-20 w-20 overflow-hidden rounded-3xl bg-slate-200">
+              <div class="flex items-center gap-4 min-w-0">
+                <div class="h-20 w-20 flex-shrink-0 overflow-hidden rounded-3xl bg-slate-200">
                   <!--fall back logo (UC Official Seal), if no logo is selected-->
                   <img :src="activeProject.logo || '/UC_Official_Seal.png'" alt="Project logo" class="h-full w-full object-cover" />
                 </div>
-                <div>
-                  <h2 class="text-xl font-semibold text-black">{{ activeProject.name }}</h2>
-                  <p class="text-xs text-slate-600">{{ activeProject.genre }} · {{ cohortName(activeProject.cohortId) }}</p>
+                <div class="min-w-0">
+                  <h2 class="text-xl font-semibold text-black truncate">{{ activeProject.name }}</h2>
+                  <p class="text-xs text-slate-600 truncate">{{ activeProject.genre }} · {{ cohortName(activeProject.cohortId) }}</p>
                 </div>
               </div>
               <div class="flex gap-2">
+                <button
+                  @click="activeProjectId = null"
+                  class="rounded-2xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition"
+                >← Back</button>
                 <button
                   @click="openEditModal"
                   class="rounded-2xl bg-[#263e30] px-4 py-2 text-sm font-semibold text-white hover:bg-[#4d7c5e] transition"
@@ -680,8 +726,14 @@ isSavingProject.value = true
             <div class="mt-4 mx-5 mb-5 rounded-[2rem] bg-gray-100 p-5">
               <h3 class="text-base font-semibold text-black mb-4">Recent Startups</h3>
               <ul class="space-y-3 text-sm text-slate-700">
-                <li v-for="s in recentStartups" :key="s.id" class="border-b border-slate-200 pb-3 last:border-b-0 last:pb-0">
-                  <span class="font-semibold text-black">{{ s.name }}</span> — {{ s.shortDescription }}
+                <li
+                  v-for="s in recentStartups"
+                  :key="s.id"
+                  @click="selectRecentStartup(s)"
+                  class="min-w-0 cursor-pointer border-b border-slate-200 pb-3 transition last:border-b-0 last:pb-0 hover:text-[#263e30] hover:*:bg-[#c3d7c8] rounded-[2rem] px-4 py-3 "
+                >
+                  <p class="truncate font-semibold text-black">{{ s.name }}</p>
+                  <p class="truncate text-slate-600">{{ s.shortDescription }}</p>
                 </li>
               </ul>
             </div>
@@ -764,22 +816,23 @@ isSavingProject.value = true
         />
         <div class="relative">
           <input
-            list="genre-options"
             v-model="newProject.genre"
             placeholder="Genre (e.g. HealthTech)"
             class="w-full rounded-2xl border border-gray-200 bg-gray-100 px-4 py-3 text-sm text-black outline-none focus:border-[#263e30]"
+            @focus="showAddGenreSuggestions = true"
+            @blur="showAddGenreSuggestions = false"
           />
-          <!-- FLAG: this same id="genre-options" datalist is duplicated below
-               in the Edit Project Modal. Duplicate ids are invalid HTML —
-               the browser will always resolve the input's `list` attribute
-               to whichever one comes first in the DOM, so the Edit modal's
-               genre autocomplete may silently use the wrong (Add modal's)
-               datalist if both are ever rendered in the same DOM pass.
-               Recommend giving each a unique id, e.g. "genre-options-add"
-               and "genre-options-edit". -->
-          <datalist id="genre-options">
-            <option v-for="genre in genreOptions" :key="genre" :value="genre" />
-          </datalist>
+          <ul
+            v-if="showAddGenreSuggestions && matchingGenres(newProject.genre).length"
+            class="absolute z-10 mt-1 w-full max-h-40 overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-lg"
+          >
+            <li
+              v-for="genre in matchingGenres(newProject.genre)"
+              :key="genre"
+              @mousedown.prevent="chooseAddGenre(genre)"
+              class="cursor-pointer px-4 py-2 text-sm text-black hover:bg-[#c3d7c8]"
+            >{{ genre }}</li>
+          </ul>
         </div>
         <textarea
           v-model="newProject.shortDescription"
@@ -838,14 +891,23 @@ isSavingProject.value = true
         />
         <div class="relative">
           <input
-            list="genre-options"
             v-model="editForm.genre"
             placeholder="Genre"
             class="w-full rounded-2xl border border-gray-200 bg-gray-100 px-4 py-3 text-sm text-black outline-none focus:border-[#263e30]"
+            @focus="showEditGenreSuggestions = true"
+            @blur="showEditGenreSuggestions = false"
           />
-          <datalist id="genre-options">
-            <option v-for="genre in genreOptions" :key="genre" :value="genre" />
-          </datalist>
+          <ul
+            v-if="showEditGenreSuggestions && matchingGenres(editForm.genre).length"
+            class="absolute z-10 mt-1 w-full max-h-40 overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-lg"
+          >
+            <li
+              v-for="genre in matchingGenres(editForm.genre)"
+              :key="genre"
+              @mousedown.prevent="chooseEditGenre(genre)"
+              class="cursor-pointer px-4 py-2 text-sm text-black hover:bg-[#c3d7c8]"
+            >{{ genre }}</li>
+          </ul>
         </div>
         <textarea
           v-model="editForm.shortDescription"
@@ -897,6 +959,7 @@ isSavingProject.value = true
       <div class="flex justify-end gap-3">
         <!-- <button type="button" @click="cancelDelete" class="rounded-2xl border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Cancel</button>
         <button type="button" @click="confirmDelete" class="rounded-2xl bg-[#e05c5c] px-4 py-2 text-sm font-semibold text-white hover:bg-[#c44343]">Delete</button> -->
+          
         <!--july 10-[bug fix]: duplicate entries on double click-->
         <button type="button" @click="cancelDelete" class="rounded-2xl border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Cancel</button>
         <button type="button" :disabled="isDeleting" @click="confirmDelete" class="flex items-center gap-2 rounded-2xl bg-[#e05c5c] px-4 py-2 text-sm font-semibold text-white hover:bg-[#c44343] disabled:cursor-not-allowed disabled:opacity-60">

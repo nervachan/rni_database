@@ -3,6 +3,8 @@ import api from './api'
 // ipService.js/startupService.js since there's no separate lookup table to
 // join against here — every field on a research entry lives directly on
 // the research_entries row.
+// rni_database/src/services/researchEntryService.js
+
 
 // Convert a raw database row (snake_case columns) into the camelCase shape
 // resEntryMgmt.vue and RSODashboard.vue actually work with.
@@ -38,26 +40,55 @@ function toDbPayload(record) {
 
 // Fetch every research entry.
 export async function getResearchEntries() {
-  const { data } = await api.get('/research-entries')
-  return data.entries.map(toClientRecord)
+  let entries
+  try {
+    const { data } = await api.get('/research-entries')
+    entries = data.entries
+  } catch (err) {
+    const status = err.response?.status ?? 'network error'
+    throw new Error(`Failed to load research entries (${status})`)
+  }
+
+  return entries.map(toClientRecord)
 }
 
 // Create a new research entry. Returns the row exactly as Supabase stored
 // it (with its generated id), converted to client shape, so the caller can
 // add it straight to its local list without a second round trip.
 export async function createResearchEntry(payload) {
-  const { data } = await api.post('/research-entries', toDbPayload(payload))
-  return toClientRecord(data.entry)
+  let entry
+  try {
+    const { data } = await api.post('/research-entries', toDbPayload(payload))
+    entry = data.entry
+  } catch (err) {
+    const status = err.response?.status ?? 'network error'
+    throw new Error(`Failed to create research entry (${status})`)
+  }
+
+  return toClientRecord(entry)
 }
 
 // Update an existing research entry by id.
 export async function updateResearchEntry(id, payload) {
-  const { data } = await api.patch(`/research-entries/${id}`, toDbPayload(payload))
-  return toClientRecord(data.entry)
+  let entry
+  try {
+    const { data } = await api.patch(`/research-entries/${id}`, toDbPayload(payload))
+    entry = data.entry
+  } catch (err) {
+    const status = err.response?.status ?? 'network error'
+    throw new Error(`Failed to update research entry (${status})`)
+  }
+
+  return toClientRecord(entry)
 }
 
 // Delete a research entry by id.
 export async function deleteResearchEntry(id) {
-  await api.delete(`/research-entries/${id}`)
+  try {
+    await api.delete(`/research-entries/${id}`)
+  } catch (err) {
+    const status = err.response?.status ?? 'network error'
+    throw new Error(`Failed to delete research entry (${status})`)
+  }
   return true
 }
