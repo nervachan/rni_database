@@ -1,4 +1,5 @@
 <script setup>
+// rni_database/src/views/rso-pages/resEntryMgmt.vue
 import {
   MagnifyingGlassIcon,
   XMarkIcon,
@@ -14,6 +15,9 @@ import ReusableTable from '../../components/tables/ReusableTable.vue';
 import FilterControls from '../../components/filters/FilterControls.vue';
 import SortControls from '../../components/filters/SortControls.vue';
 import { createResearchEntry, deleteResearchEntry, getResearchEntries, updateResearchEntry } from '../../services/researchEntryService';
+import { useAuthStore } from '../../stores/auth';
+const authStore = useAuthStore();
+const isReadOnly = computed(() => authStore.isReadOnly);
 
 const TITLE_DISALLOWED = /[<>{}[\]\\|`;]/g
 const NAME_DISALLOWED = /[^a-zA-Z\u00C0-\u017F\s.,'-]/g
@@ -93,11 +97,18 @@ const tableColumns = [
   { key: 'actions', label: 'Actions', widthClass: 'w-[10rem]', type: 'actions' },
 ];
 
-const tableActions = [
-  { key: 'view', title: 'View', icon: EyeIcon, className: 'border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100' },
-  { key: 'edit', title: 'Edit', icon: PencilSquareIcon, className: 'border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100' },
-  { key: 'delete', title: 'Delete', icon: TrashIcon, className: 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100' },
-];
+const tableActions = computed(() => {
+  const actions = [
+    { key: 'view', title: 'View', icon: EyeIcon, className: 'border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100' },
+  ];
+  if (!isReadOnly.value) {
+    actions.push(
+      { key: 'edit', title: 'Edit', icon: PencilSquareIcon, className: 'border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100' },
+      { key: 'delete', title: 'Delete', icon: TrashIcon, className: 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100' },
+    );
+  }
+  return actions;
+});
 
 const filteredEntries = computed(() => {
   const q = searchQuery.value.trim().toLowerCase();
@@ -398,7 +409,7 @@ function handleTableAction({ action, row }) {
         </button>
       </div>
 
-      <button class="flex shrink-0 items-center justify-center gap-2 rounded-lg bg-[#263e30] p-2 text-sm text-white transition hover:opacity-80" @click="openAddModal">
+      <button v-if="!isReadOnly" class="flex shrink-0 items-center justify-center gap-2 rounded-lg bg-[#263e30] p-2 text-sm text-white transition hover:opacity-80" @click="openAddModal">
         <PlusIcon class="h-6 w-6 text-white" />
         Add New Entry
       </button>
