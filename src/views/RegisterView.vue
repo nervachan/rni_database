@@ -1,5 +1,5 @@
 <script setup>
-
+// rni_database/src/views/RegisterView.vue
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { ChevronLeftIcon } from '@heroicons/vue/24/solid';

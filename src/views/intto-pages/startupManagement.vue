@@ -16,6 +16,9 @@
 
 import { ref, computed, watch, onMounted } from 'vue'
 import { getCohorts, getStartups, createCohort, createStartup, updateStartup, deleteStartup } from '../../services/startupService.js'
+import { useAuthStore } from '../../stores/auth.js'
+const authStore = useAuthStore()
+const isReadOnly = computed(() => authStore.isReadOnly)
 
 // --- Navigation / selection state ---
 const activeCohortId  = ref(null)   // id of the cohort currently shown in column 2
@@ -541,6 +544,7 @@ isSavingProject.value = true
           <div class="flex items-center justify-between rounded-xl bg-[#263e30] px-4 py-4 gap-2">
             <span class="text-sm font-semibold uppercase tracking-[0.24em] text-white">All Cohorts</span>
             <button
+              v-if="!isReadOnly"
               @click="openCohortModal"
               class="rounded-sm bg-[#4d7c5e] px-3 py-1.5 text-xs font-semibold text-white hover:bg-white hover:text-[#263e30] transition shrink-0"
             >+ Cohort</button>
@@ -572,6 +576,7 @@ isSavingProject.value = true
           <div class="flex items-center justify-between rounded-xl bg-[#263e30] px-4 py-4 gap-2"> <!-- Projects Header -->
             <span class="text-sm font-semibold uppercase tracking-[0.24em] text-white">Projects</span>
             <button
+              v-if="!isReadOnly"
               @click="openAddProjectModal"
               class="rounded-sm bg-[#4d7c5e] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#4d7c5e] transition shrink-0"
             >+ Project</button>
@@ -683,7 +688,7 @@ isSavingProject.value = true
                   <p class="text-xs text-slate-600 truncate">{{ activeProject.genre }} · {{ cohortName(activeProject.cohortId) }}</p>
                 </div>
               </div>
-              <div class="flex gap-2">
+              <div v-if="!isReadOnly" class="flex gap-2">
                 <button
                   @click="activeProjectId = null"
                   class="rounded-2xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition"
