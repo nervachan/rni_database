@@ -17,6 +17,9 @@
 import { ref, computed, reactive, watch, onMounted } from 'vue'
 import { getIpRecords, createIpRecord, updateIpRecord, deleteIpRecord } from '../../services/ipService.js'
 import { downloadExport } from '../../utils/exportUtils.js'
+import { useAuthStore } from '../../stores/auth'
+const authStore = useAuthStore()
+const isReadOnly = computed(() => authStore.isReadOnly)
 
 defineEmits(['view'])
 
@@ -585,14 +588,15 @@ function statusClass(status) {
       </select>
 
       <div class="flex items-center gap-2 ml-auto">
-        <label class="flex items-center gap-2 rounded-md bg-gray-100 border border-white/10 px-4 py-2 text-xs font-semibold text-black shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] cursor-pointer hover:border-[#9ecfa8]/40">
+        <label v-if="!isReadOnly" class="flex items-center gap-2 rounded-md bg-gray-100 border border-white/10 px-4 py-2 text-xs font-semibold text-black shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] cursor-pointer hover:border-[#9ecfa8]/40">
           <input type="file" accept=".csv" @change="handleImportFile" class="hidden" />
-          Import CSV
-        </label>
-        <button
-          class="flex items-center gap-1.5 bg-grey-200 border border-[#9ecfa8]/40 text-black text-xs font-semibold px-4 py-2 rounded-md hover:bg-[#9ecfa8] hover:text-[#1a2e22] transition-colors shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]"
-          @click="openForm()"
-        >
+            Import CSV
+          </label>
+          <button
+            v-if="!isReadOnly"
+            class="flex items-center gap-1.5 bg-grey-200 border border-[#9ecfa8]/40 text-black text-xs font-semibold px-4 py-2 rounded-md hover:bg-[#9ecfa8] hover:text-[#1a2e22] transition-colors shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]"
+            @click="openForm()"
+          >
           <span class="text-base leading-none">+</span> Add Record
         </button>
       </div>
@@ -603,15 +607,15 @@ function statusClass(status) {
     <div v-if="selectedIds.length" class="px-4 sm:px-6 pb-4">
       <div class="flex flex-wrap items-center gap-3 rounded-2xl bg-white px-4 py-3 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]">
         <span class="text-sm text-slate-700">{{ selectedIds.length }} selected</span>
-        <div class="flex items-center gap-2">
+        <div v-if="!isReadOnly" class="flex items-center gap-2">
           <label class="text-sm text-slate-600">Status</label>
           <select v-model="bulkStatus" class="rounded-2xl border border-gray-200 bg-white px-4 py-2 text-sm text-black outline-none">
             <option v-for="status in statusOptions" :key="status" :value="status">{{ status }}</option>
           </select>
           <button @click="bulkUpdateStatus" class="rounded-2xl bg-[#263e30] px-4 py-2 text-xs font-semibold text-white hover:bg-[#4d7c5e] transition">Apply status</button>
-        <button @click="undoBulkStatusChange" :disabled="!lastBulkStatusChange" class="rounded-2xl bg-[#8b5cf6] px-4 py-2 text-xs font-semibold text-white hover:bg-[#7c3aed] transition disabled:cursor-not-allowed disabled:opacity-50">Undo status</button>
+          <button @click="undoBulkStatusChange" :disabled="!lastBulkStatusChange" class="rounded-2xl bg-[#8b5cf6] px-4 py-2 text-xs font-semibold text-white hover:bg-[#7c3aed] transition disabled:cursor-not-allowed disabled:opacity-50">Undo status</button>
         </div>
-        <button @click="bulkDelete" class="rounded-2xl bg-[#e05c5c] px-4 py-2 text-xs font-semibold text-white hover:bg-[#c44343] transition">Delete selected</button>
+        <button v-if="!isReadOnly" @click="bulkDelete" class="rounded-2xl bg-[#e05c5c] px-4 py-2 text-xs font-semibold text-white hover:bg-[#c44343] transition">Delete selected</button>
         <button @click="exportRows" class="rounded-2xl bg-[#3b9edd] px-4 py-2 text-xs font-semibold text-white hover:bg-[#2f8cd2] transition">Export selected</button>
         <button @click="clearSelection" class="rounded-2xl border border-slate-300 px-4 py-2 text-xs text-slate-700 hover:bg-slate-100 transition">Clear selection</button>
       </div>
@@ -738,7 +742,7 @@ function statusClass(status) {
                 </td>
                 <td class="py-3 px-3 text-black/70 group-hover:text-black">{{ row.classification }}</td>
                 <td class="py-3 px-3">
-                  <div class="flex items-center gap-1.5">
+                  <div v-if="!isReadOnly" class="flex items-center gap-1.5">
                     <button class="w-7 h-7 flex items-center justify-center rounded border border-[#e6a817]/50 text-[#e6a817] hover:bg-[#e6a817] hover:text-white transition-colors" title="Edit" @click="openForm(row)">
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>

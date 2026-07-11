@@ -1,5 +1,5 @@
 <script setup>
-
+// rni_database/src/views/LoginView.vue
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { EyeIcon, EyeSlashIcon } from '@heroicons/vue/24/outline';
