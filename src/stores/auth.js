@@ -20,7 +20,28 @@ export const useAuthStore = defineStore('auth', () => {
   })
 
   async function login(email, password, selectedRole = null) {
-    const credential = await signInWithEmailAndPassword(auth, email, password)
+    let credential
+    try {
+      credential = await signInWithEmailAndPassword(auth, email, password)
+    } catch (err) {
+      // Failed login — no valid Firebase session exists here, so this
+      // can't go through the normal authenticated flow. Fired as a plain,
+      // unauthenticated request to the one endpoint in the backend that
+      // doesn't require a token. Logging failure never blocks the real
+      // error from reaching the caller — the original err is always
+      // re-thrown regardless of whether this succeeds.
+      try {
+        await fetch('/api/logs/failed-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        })
+      } catch (logErr) {
+        console.error('Failed to record failed login attempt:', logErr)
+      }
+      throw err
+    }
+
     const tokenResult = await credential.user.getIdTokenResult()
 
     user.value = credential.user
@@ -28,10 +49,34 @@ export const useAuthStore = defineStore('auth', () => {
     activeRole.value = selectedRole || userRole.value
     isLoggedIn.value = true
 
+    try {
+      const token = await credential.user.getIdToken()
+      await fetch('/api/logs/login', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+    } catch (logErr) {
+      console.error('Failed to record login:', logErr)
+    }
+
     return userRole.value
   }
 
   async function logout() {
+    // Logged BEFORE signOut() — once signOut() completes there's no valid
+    // token left to authenticate this request with.
+    try {
+      const token = await auth.currentUser?.getIdToken()
+      if (token) {
+        await fetch('/api/logs/logout', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        })
+      }
+    } catch (logErr) {
+      console.error('Failed to record logout:', logErr)
+    }
+
     await signOut(auth)
     user.value = null
     userRole.value = ''
