@@ -1,9 +1,12 @@
 <script setup>
 import { CheckIcon, XMarkIcon } from '@heroicons/vue/24/outline';
-import { ref } from 'vue';
+import { ref, onUnmounted } from 'vue';
 import ReusableTable from '../../components/tables/ReusableTable.vue';
 import { approveApplication, getApplications, rejectApplication } from '../../services/applicationService';
 import { getNotifications } from '../../services/notificationService';
+import { useApplicationsStore } from '../../stores/applications';
+
+const applicationsStore = useApplicationsStore();
 
 const applications = ref([]);
 const notifications = ref([]);
@@ -27,11 +30,22 @@ const tableActions = [
   { key: 'reject', title: 'Reject', icon: XMarkIcon, className: 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100' },
 ];
 
+// isRefreshing guards against overlapping polling requests: if a fetch
+// is still in flight when the next interval fires, this skips starting
+// a second one instead of letting requests stack up.
+let isRefreshing = false;
+let pollIntervalId = null;
+
 // Loaded together since neither depends on the other — same
-// Promise.all pattern used in SuperAdminDashboard.vue. Named loadData()
-// (not loadApplications()) since it now covers both.
-async function loadData() {
-  isLoading.value = true;
+// Promise.all pattern used in SuperAdminDashboard.vue. showLoadingState
+// is only true on the very first call (isLoading drives the big
+// spinner) — background polling refreshes shouldn't flash a full-page
+// loading state every 25 seconds while someone's actively reading this
+// page.
+async function loadData(showLoadingState = true) {
+  if (isRefreshing) return;
+  isRefreshing = true;
+  if (showLoadingState) isLoading.value = true;
   loadError.value = '';
   try {
     const [applicationsResult, notificationsResult] = await Promise.all([
@@ -40,14 +54,33 @@ async function loadData() {
     ]);
     applications.value = applicationsResult;
     notifications.value = notificationsResult;
+    // Pushes the up-to-date count straight to the shared store — the
+    // sidebar reads this reactively, so the ping updates the instant
+    // this page reloads (including right after an approve/reject),
+    // instead of waiting for the sidebar's own separate poll to catch
+    // up to 25 seconds later. No extra API call needed: applicationsResult
+    // is the same data this page already fetched above.
+    applicationsStore.setPendingCount(applicationsResult.length);
   } catch (err) {
     loadError.value = 'Failed to load data.';
   } finally {
-    isLoading.value = false;
+    if (showLoadingState) isLoading.value = false;
+    isRefreshing = false;
   }
 }
 
 loadData();
+
+// Polls every 25 seconds so a new application submitted or approved
+// elsewhere shows up here without needing a manual refresh — same
+// interval and reasoning as the sidebar badge in AppSidebar.vue.
+pollIntervalId = setInterval(() => loadData(false), 25000);
+
+onUnmounted(() => {
+  if (pollIntervalId) {
+    clearInterval(pollIntervalId);
+  }
+});
 
 function formatTimeAgo(value) {
   const date = new Date(value);
