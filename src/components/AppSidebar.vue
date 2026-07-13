@@ -1,13 +1,13 @@
 <script setup>
 
-import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, onUnmounted } from 'vue'
 import { ArrowLeftStartOnRectangleIcon, Bars3Icon } from '@heroicons/vue/24/solid'
 import { HomeIcon, BookOpenIcon } from '@heroicons/vue/24/outline'
 import { LightBulbIcon, ShieldCheckIcon } from '@heroicons/vue/24/outline'
 import { UserIcon, CircleStackIcon, BellIcon } from '@heroicons/vue/24/outline'
+import { ref } from 'vue'
 import { useAuthStore } from '../stores/auth'
-import { getApplications } from '../services/applicationService'
+import { useApplicationsStore } from '../stores/applications'
 
 const props = defineProps({
     role: {
@@ -16,8 +16,8 @@ const props = defineProps({
     }
 })
 
-const router = useRouter()
 const authStore = useAuthStore()
+const applicationsStore = useApplicationsStore()
 
 const navItems = {
     'RSO Admin': [
@@ -44,26 +44,24 @@ const navItemsForRole = computed(() => {
     return navItems[props.role] || [];
 });
 
-// Drives the ping indicator on "Applications and Notifications" —
-// only fetched for the Super Admin sidebar, since RSO/INTTO never
-// render that nav item at all. A failure here is logged but not
-// surfaced as an error to the user: a missing notification badge
-// isn't worth blocking the sidebar or showing an error banner over,
-// unlike a failed data load elsewhere in the app.
-const pendingApplicationsCount = ref(0);
-
-async function loadPendingApplicationsCount() {
-    try {
-        const applications = await getApplications();
-        pendingApplicationsCount.value = applications.length;
-    } catch (err) {
-        console.error('Failed to load pending applications count for sidebar badge:', err);
-    }
-}
+// Polling still lives here — it's what keeps the ping accurate when
+// the Applications page isn't open at all (e.g. a super admin sitting
+// on the Dashboard the whole time a new application comes in). When
+// the Applications page IS open, its own loadData() pushes updates to
+// applicationsStore instantly on every load/approve/reject, so the
+// ping doesn't have to wait for this interval to catch up in that case.
+let pollIntervalId = null;
 
 onMounted(() => {
     if (props.role === 'Super Admin') {
-        loadPendingApplicationsCount();
+        applicationsStore.refreshPendingCount();
+        pollIntervalId = setInterval(() => applicationsStore.refreshPendingCount(), 25000);
+    }
+});
+
+onUnmounted(() => {
+    if (pollIntervalId) {
+        clearInterval(pollIntervalId);
     }
 });
 
@@ -72,9 +70,7 @@ function closeMobileMenu() {
 }
 
 async function handleLogout() {
-    const wasSuperAdmin = authStore.userRole === 'superadmin'
     await authStore.logout()
-    router.push(wasSuperAdmin ? '/super-admin' : '/login')
 }
 
 </script>
@@ -102,8 +98,11 @@ async function handleLogout() {
                     <span class="text-sm">{{ navItem.label }}</span>
                     <!-- Ping indicator: only shown on the Applications and
                          Notifications item, and only while there's at least
-                         one pending application waiting on review. -->
-                    <span v-if="navItem.route === '/super-admin/applications-and-notifications' && pendingApplicationsCount > 0" class="relative flex size-3">
+                         one pending application waiting on review. Reads
+                         applicationsStore.pendingCount, which appliAndNotifs.vue
+                         updates the instant a super admin approves/rejects
+                         something — not just on this component's own poll. -->
+                    <span v-if="navItem.route === '/super-admin/applications-and-notifications' && applicationsStore.pendingCount > 0" class="relative flex size-3">
                         <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-400 opacity-75"></span>
                         <span class="relative inline-flex size-3 rounded-full bg-sky-500"></span>
                     </span>
@@ -146,13 +145,12 @@ async function handleLogout() {
                             class="icon-wrapper absolute w-10 h-full flex items-center justify-center transition-all duration-300"
                             :class="isCollapsed ? 'left-1/2 -translate-x-1/2' : 'left-3 translate-x-0'"
                         >
-                            <component :is="navItem.icon" class="w-5 h-5 shrink-0"/>
-                            <!-- Positioned on the icon itself so it's still
-                                 visible when the sidebar is collapsed to
-                                 icon-only width. -->
-                            <span v-if="navItem.route === '/super-admin/applications-and-notifications' && pendingApplicationsCount > 0" class="absolute top-0 right-0 flex size-3">
-                                <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-400 opacity-75"></span>
-                                <span class="relative inline-flex size-3 rounded-full bg-sky-500"></span>
+                            <span class="relative inline-flex">
+                                <component :is="navItem.icon" class="w-5 h-5 shrink-0"/>
+                                <span v-if="navItem.route === '/super-admin/applications-and-notifications' && applicationsStore.pendingCount > 0" class="absolute -top-1 -right-1 flex size-3">
+                                    <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-400 opacity-75"></span>
+                                    <span class="relative inline-flex size-3 rounded-full bg-sky-500"></span>
+                                </span>
                             </span>
                         </span>
                         <transition name="fade-label">
