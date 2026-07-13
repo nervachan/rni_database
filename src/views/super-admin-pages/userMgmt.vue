@@ -109,6 +109,19 @@ const paginatedUsers = computed(() => {
   return sortedUsers.value.slice(start, start + itemsPerPage.value);
 });
 
+// Display-only copy of paginatedUsers with approvedAt formatted as
+// 24-hour time. Kept separate from paginatedUsers itself, since
+// filteredUsers/sortedUsers above both parse approvedAt with new Date()
+// — filtering and "Newest/Oldest" sorting need the raw ISO value, not
+// the formatted display string. Same pattern used in logs.vue and
+// SuperAdminDashboard.vue for their timestamp columns.
+const displayUsers = computed(() =>
+  paginatedUsers.value.map((user) => ({
+    ...user,
+    approvedAt: formatTimestamp(user.approvedAt),
+  }))
+);
+
 watch([searchQuery, filterState, sortBy, itemsPerPage], () => {
   currentPage.value = 1;
 });
@@ -269,6 +282,19 @@ function handleCellAction({ column, row, value }) {
     updateStatus(row, value);
   }
 }
+
+// Displays a raw ISO timestamp (e.g. "2026-07-13T02:17:44.000Z") as
+// readable 24-hour/military time (e.g. "2026-07-13 02:17"). Same
+// implementation as logs.vue and SuperAdminDashboard.vue — built by
+// hand with getHours()/getMinutes() rather than toLocaleString(), since
+// toLocaleString()'s output format depends on the viewer's browser
+// locale and could show 12-hour AM/PM time for some admins.
+function formatTimestamp(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
 </script>
 
 <template>
@@ -316,7 +342,7 @@ function handleCellAction({ column, row, value }) {
     </div>
 
     <ReusableTable
-      :rows="paginatedUsers"
+      :rows="displayUsers"
       :columns="tableColumns"
       :actions="tableActions"
       empty-text="No users found"
