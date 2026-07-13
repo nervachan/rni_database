@@ -1,7 +1,7 @@
 <script setup>
 
 import { UserIcon , LightBulbIcon , BellIcon , MagnifyingGlassIcon } from '@heroicons/vue/24/outline'
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { getUsers } from '../../services/userService'
 import { getApplications } from '../../services/applicationService'
 import { getLogs } from '../../services/logService'
@@ -12,8 +12,19 @@ const recentLogs = ref([])
 const loadError = ref('')
 const isLoading = ref(true)
 
-async function loadData() {
-  isLoading.value = true
+// isRefreshing guards against overlapping polling requests: if a fetch
+// is still in flight when the next interval fires, this skips starting
+// a second one instead of letting requests stack up.
+let isRefreshing = false
+let pollIntervalId = null
+
+// showLoadingState is only true on the very first call — background
+// polling refreshes shouldn't flash the full-page spinner every 25
+// seconds while someone's actively looking at the dashboard.
+async function loadData(showLoadingState = true) {
+  if (isRefreshing) return
+  isRefreshing = true
+  if (showLoadingState) isLoading.value = true
   loadError.value = ''
   try {
     const [usersResult, applicationsResult, logsResult] = await Promise.all([
@@ -27,22 +38,30 @@ async function loadData() {
   } catch (err) {
     loadError.value = 'Failed to load dashboard data. ' + err.message
   } finally {
-    isLoading.value = false
+    if (showLoadingState) isLoading.value = false
+    isRefreshing = false
   }
 }
 
-onMounted(loadData)
+onMounted(() => {
+  loadData()
+  // Polls every 25 seconds so new applications/logs show up without a
+  // manual refresh — same interval and reasoning as AppSidebar.vue and
+  // appliAndNotifs.vue.
+  pollIntervalId = setInterval(() => loadData(false), 25000)
+})
+
+onUnmounted(() => {
+  if (pollIntervalId) {
+    clearInterval(pollIntervalId)
+  }
+})
 
 const totalUser  = computed(() => users.value.length)
 const totalINTTO = computed(() => users.value.filter((u) => u.role === 'INTTO').length)
 const totalRSO   = computed(() => users.value.filter((u) => u.role === 'RSO').length)
 const totalPending = computed(() => pendingApplications.value.length)
 
-// Same formatting used on the full Logs page (logs.vue) — kept as an
-// identical, separate copy rather than a shared import, since this
-// component only needs it for a 5-row preview and pulling in a shared
-// util for one function isn't worth the extra file yet. Revisit if a
-// third place ends up needing the same formatting.
 function formatTimestamp(value) {
   if (!value) return ''
   const date = new Date(value)
