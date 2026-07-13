@@ -6,7 +6,7 @@ import {
   ChevronRightIcon,
   PencilSquareIcon,
 } from '@heroicons/vue/24/outline';
-import { computed, ref, watch, onMounted } from 'vue';
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 import ReusableTable from '../../components/tables/ReusableTable.vue';
 import FilterControls from '../../components/filters/FilterControls.vue';
 import SortControls from '../../components/filters/SortControls.vue';
@@ -56,19 +56,46 @@ const formError = ref('');
 const isSaving = ref(false);
 const users = ref([]);
 
-async function loadUsers() {
-  isLoading.value = true;
+// isRefreshing guards against overlapping polling requests: if a fetch
+// is still in flight when the next interval fires, this skips starting
+// a second one instead of letting requests stack up.
+let isRefreshing = false;
+let pollIntervalId = null;
+
+// showLoadingState is only true on the very first call — background
+// polling refreshes shouldn't flash the full-page spinner every 25
+// seconds while someone's actively reading this page or has the edit
+// modal open. The edit modal's own state (formUser, selectedUser) is
+// separate from the users list, so a background refresh here never
+// interrupts or overwrites an in-progress edit.
+async function loadUsers(showLoadingState = true) {
+  if (isRefreshing) return;
+  isRefreshing = true;
+  if (showLoadingState) isLoading.value = true;
   loadError.value = '';
   try {
     users.value = await getUsers();
   } catch (err) {
     loadError.value = 'Failed to load users. ' + err.message;
   } finally {
-    isLoading.value = false;
+    if (showLoadingState) isLoading.value = false;
+    isRefreshing = false;
   }
 }
 
-onMounted(loadUsers);
+onMounted(() => {
+  loadUsers();
+  // Polls every 25 seconds so newly approved users show up without a
+  // manual refresh — same interval and reasoning as AppSidebar.vue and
+  // appliAndNotifs.vue.
+  pollIntervalId = setInterval(() => loadUsers(false), 25000);
+});
+
+onUnmounted(() => {
+  if (pollIntervalId) {
+    clearInterval(pollIntervalId);
+  }
+});
 
 const filteredUsers = computed(() => {
   const q = searchQuery.value.trim().toLowerCase();
@@ -113,8 +140,7 @@ const paginatedUsers = computed(() => {
 // 24-hour time. Kept separate from paginatedUsers itself, since
 // filteredUsers/sortedUsers above both parse approvedAt with new Date()
 // — filtering and "Newest/Oldest" sorting need the raw ISO value, not
-// the formatted display string. Same pattern used in logs.vue and
-// SuperAdminDashboard.vue for their timestamp columns.
+// the formatted display string.
 const displayUsers = computed(() =>
   paginatedUsers.value.map((user) => ({
     ...user,
@@ -283,12 +309,6 @@ function handleCellAction({ column, row, value }) {
   }
 }
 
-// Displays a raw ISO timestamp (e.g. "2026-07-13T02:17:44.000Z") as
-// readable 24-hour/military time (e.g. "2026-07-13 02:17"). Same
-// implementation as logs.vue and SuperAdminDashboard.vue — built by
-// hand with getHours()/getMinutes() rather than toLocaleString(), since
-// toLocaleString()'s output format depends on the viewer's browser
-// locale and could show 12-hour AM/PM time for some admins.
 function formatTimestamp(value) {
   if (!value) return '';
   const date = new Date(value);
