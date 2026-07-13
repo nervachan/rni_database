@@ -2,6 +2,7 @@
 const express = require('express');
 const { supabase } = require('../supabaseClient.cjs');
 const { verifyToken, requireRole } = require('../authMiddleware.cjs');
+const rateLimit = require('express-rate-limit');
 
 let auth = null;
 try {
@@ -11,6 +12,14 @@ try {
 }
 
 const app = express();
+
+// Required for express-rate-limit (added below) to see the real client
+// IP instead of Vercel's proxy address. Without this, every request
+// would appear to come from the same internal IP, either merging every
+// visitor into one shared rate-limit bucket or causing the rate
+// limiter to reject all requests outright as a safety check.
+app.set('trust proxy', 1);
+
 
 //----------------------------- app.use(express.json());-------------------------------------------
 /* With no limit specified, Express's default body-size cap is 100kb — nowhere close to 2.7MB. 
@@ -81,6 +90,24 @@ function pick(body, allowedKeys) {
   }
   return result;
 }
+
+// Rate limiter for the one unauthenticated write endpoint in this
+// backend (failed-login logging). A client-side cooldown alone isn't
+// real protection — it's just JS state, reset by a new tab, a new
+// browser, or a direct fetch() call bypassing the UI entirely. This
+// enforces the limit server-side, per IP, so a flood of requests is
+// rejected with 429 before it ever reaches the logs table — the table
+// never grows from this in the first place, rather than growing and
+// needing cleanup afterward.
+const failedLoginLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 5,               // 5 requests per IP per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    res.status(429).json({ error: 'Too many attempts. Please wait before trying again.' });
+  },
+});
 
 // Writes one row to the audit log. Failures here are deliberately caught
 // and swallowed (not re-thrown) — a failed audit-log write should never
@@ -773,6 +800,7 @@ app.patch('/api/applications/:id/approve', verifyToken, requireRole('superadmin'
   await logNotification(`Application from ${application.first_name} ${application.last_name} was approved.`);
   res.json({ message: 'Application approved' });
 });
+
 app.patch('/api/applications/:id/reject', verifyToken, requireRole('superadmin'), async (req, res) => {
   const { id } = req.params;
 
@@ -832,25 +860,65 @@ app.post('/api/logs/logout', verifyToken, async (req, res) => {
 // Records a failed login attempt. Deliberately has NO verifyToken — a
 // failed login means there's no valid token to check in the first place.
 // This is the only unauthenticated write endpoint in the whole backend.
-// Kept intentionally minimal (one allow-listed field, capped length) to
-// limit how much damage spamming this endpoint could do; real protection
-// against abuse would mean adding rate-limiting middleware here, which is
-// separate infrastructure not built yet — worth revisiting if this ever
-// becomes a real target.
-app.post('/api/logs/failed-login', async (req, res) => {
+//
+// Also evaluates whether this email has failed to log in repeatedly in
+// a short window — if so, this specific attempt is logged as 'critical'
+// instead of the usual 'warning', so it stands out on the superadmin
+// Logs page (ReusableTable colors rows red/yellow based on the
+// severity field automatically — no frontend change needed for this).
+
+app.post('/api/logs/failed-login', failedLoginLimiter, async (req, res) => {
   const email = typeof req.body.email === 'string' ? req.body.email.trim().slice(0, 255) : null;
 
   if (!email) {
     return res.status(400).json({ error: 'Missing email' });
   }
 
+  // Threshold and window for flagging repeated failures as critical.
+  // Not a fixed rule — a starting point. Raise FAILED_LOGIN_THRESHOLD
+  // if this turns out to fire too easily during normal typo-driven
+  // failed logins; lower it if real brute-force attempts should be
+  // caught faster than 5 tries.
+  const FAILED_LOGIN_THRESHOLD = 3;
+  const FAILED_LOGIN_WINDOW_MINUTES = 15;
+
+  let severity = 'warning';
+
+  try {
+    const windowStart = new Date(Date.now() - FAILED_LOGIN_WINDOW_MINUTES * 60 * 1000).toISOString();
+
+    // Fetches the matching rows directly rather than using a count-only
+    // ({ count: 'exact', head: true }) query. That head-query pattern
+    // was the one thing in this handler that didn't match how every
+    // other route in this file queries Supabase, and it was silently
+    // returning 0 with no error — switched to the same row-fetching
+    // style used everywhere else, which is a known-working pattern in
+    // this codebase. This table is small, so fetching a handful of ids
+    // instead of just a count is not a real cost.
+    const { data: recentFailures, error: countError } = await supabase
+      .from('logs')
+      .select('id')
+      .eq('actor_email', email)
+      .like('action', 'Failed login attempt:%')
+      .gte('created_at', windowStart);
+
+    if (countError) {
+      console.error('Failed to count recent failed login attempts:', countError);
+    } else if (recentFailures.length + 1 >= FAILED_LOGIN_THRESHOLD) {
+      // +1 accounts for the attempt currently being logged, which
+      // hasn't been inserted yet at the point this check runs.
+      severity = 'critical';
+    }
+  } catch (err) {
+    console.error('Failed to evaluate failed login threshold:', err);
+  }
   try {
     await supabase.from('logs').insert({
       action: `Failed login attempt: ${email}`,
       actor_name: null,
       actor_email: email,
       actor_role: null,
-      severity: 'warning',
+      severity,
     });
   } catch (err) {
     console.error('Failed to write audit log:', err);
