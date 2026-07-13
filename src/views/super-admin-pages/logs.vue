@@ -93,11 +93,7 @@ function goToPage(page) {
   }
 }
 
-function getSeverityClass(log) {
-  if (log.severity === 'critical') return 'bg-red-100 text-red-800';
-  if (log.severity === 'warning') return 'bg-yellow-100 text-yellow-800';
-  return '';
-}
+
 
 // Displays a log's raw ISO timestamp (e.g. "2026-07-13T02:17:44.000Z")
 // as readable 24-hour/military time (e.g. "2026-07-13 02:17"). Built
