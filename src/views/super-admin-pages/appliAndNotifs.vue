@@ -1,12 +1,12 @@
 <script setup>
 import { CheckIcon, XMarkIcon } from '@heroicons/vue/24/outline';
-import { computed, ref } from 'vue';
+import { ref } from 'vue';
 import ReusableTable from '../../components/tables/ReusableTable.vue';
 import { approveApplication, getApplications, rejectApplication } from '../../services/applicationService';
 import { getNotifications } from '../../services/notificationService';
 
 const applications = ref([]);
-const notifications = ref(getNotifications());
+const notifications = ref([]);
 const isLoading = ref(true);
 const loadError = ref('');
 
@@ -27,21 +27,27 @@ const tableActions = [
   { key: 'reject', title: 'Reject', icon: XMarkIcon, className: 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100' },
 ];
 
-const pendingApplications = computed(() => applications.value);
-
-async function loadApplications() {
+// Loaded together since neither depends on the other — same
+// Promise.all pattern used in SuperAdminDashboard.vue. Named loadData()
+// (not loadApplications()) since it now covers both.
+async function loadData() {
   isLoading.value = true;
   loadError.value = '';
   try {
-    applications.value = await getApplications();
+    const [applicationsResult, notificationsResult] = await Promise.all([
+      getApplications(),
+      getNotifications(),
+    ]);
+    applications.value = applicationsResult;
+    notifications.value = notificationsResult;
   } catch (err) {
-    loadError.value = 'Failed to load applications.';
+    loadError.value = 'Failed to load data.';
   } finally {
     isLoading.value = false;
   }
 }
 
-loadApplications();
+loadData();
 
 function formatTimeAgo(value) {
   const date = new Date(value);
@@ -84,7 +90,11 @@ function handleApplicationAction({ action, row }) {
       } else {
         await rejectApplication(row.id);
       }
-      await loadApplications();
+      // Approving changes both lists: the applications table loses a
+      // pending row, and a new notification gets written server-side.
+      // Reloading both keeps them in sync instead of only patching
+      // the applications array locally.
+      await loadData();
     } catch (err) {
       loadError.value = `Failed to ${label} application.`;
     }
@@ -106,8 +116,8 @@ function handleApplicationAction({ action, row }) {
       <div v-else-if="loadError" class="text-sm text-red-500 p-4">{{ loadError }}</div>
 
       <ReusableTable
-        v-if="pendingApplications.length"
-        :rows="pendingApplications"
+        v-if="applications.length"
+        :rows="applications"
         :columns="tableColumns"
         :actions="tableActions"
         empty-text="No pending applications at this time."
