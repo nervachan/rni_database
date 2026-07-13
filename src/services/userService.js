@@ -1,62 +1,35 @@
-const initialUsers = [ //mock data, to be cleaned later
-  {
-    id: 1,
-    name: 'Maria Santos',
-    role: 'INTTO',
-    email: 'maria.santos@example.com',
-    approvedAt: '2026-06-27',
-    status: 'Active',
-  },
-  {
-    id: 2,
-    name: 'Rafael Lim',
-    role: 'RSO',
-    email: 'rafael.lim@example.com',
-    approvedAt: '2026-06-24',
-    status: 'Active',
-  },
-  {
-    id: 3,
-    name: 'Jasmine Torres',
-    role: 'INTTO',
-    email: 'jasmine.torres@example.com',
-    approvedAt: '2026-06-21',
-    status: 'Inactive',
-  },
-  {
-    id: 4,
-    name: 'Paul Reyes',
-    role: 'RSO',
-    email: 'paul.reyes@example.com',
-    approvedAt: '2026-06-18',
-    status: 'Active',
-  },
-  {
-    id: 5,
-    name: 'Cris Villanueva',
-    role: 'INTTO',
-    email: 'cris.villanueva@example.com',
-    approvedAt: '2026-06-15',
-    status: 'Inactive',
-  },
-  {
-    id: 6,
-    name: 'Mina Cruz',
-    role: 'RSO',
-    email: 'mina.cruz@example.com',
-    approvedAt: '2026-06-12',
-    status: 'Active',
-  },
-];
+import api from './api'
 
-//get and update functions
-let users = initialUsers.map((user) => ({ ...user }));
-
-export function getUsers() {
-  return users.map((user) => ({ ...user }));
+// name, role, email, status, and approved_at are all real columns on
+// the users table. status syncs to Firebase's `disabled` flag and
+// approved_at is set when an application is approved (see
+// PATCH /api/applications/:id/approve in api/index.js).
+function toClientRecord(row) {
+  return {
+    id:         row.id,
+    name:       row.name,
+    role:       row.role,
+    email:      row.email,
+    status:     row.status,
+    approvedAt: row.approved_at,
+  }
 }
 
-export function updateUser(id, payload) {
-  users = users.map((user) => (user.id === id ? { ...user, ...payload } : user));
-  return getUsers().find((user) => user.id === id);
+function toDbPayload(payload) {
+  const dbPayload = {}
+  if (payload.name   !== undefined) dbPayload.name   = payload.name
+  if (payload.role   !== undefined) dbPayload.role   = payload.role
+  if (payload.email  !== undefined) dbPayload.email  = payload.email
+  if (payload.status !== undefined) dbPayload.status = payload.status
+  return dbPayload
+}
+
+export async function getUsers() {
+  const { data } = await api.get('/users')
+  return data.users.map(toClientRecord)
+}
+
+export async function updateUser(id, payload) {
+  const { data } = await api.patch(`/users/${id}`, toDbPayload(payload))
+  return toClientRecord(data.user)
 }
