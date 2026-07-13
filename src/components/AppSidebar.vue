@@ -1,12 +1,13 @@
 <script setup>
 
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeftStartOnRectangleIcon, Bars3Icon } from '@heroicons/vue/24/solid'
 import { HomeIcon, BookOpenIcon } from '@heroicons/vue/24/outline'
 import { LightBulbIcon, ShieldCheckIcon } from '@heroicons/vue/24/outline'
 import { UserIcon, CircleStackIcon, BellIcon } from '@heroicons/vue/24/outline'
 import { useAuthStore } from '../stores/auth'
+import { getApplications } from '../services/applicationService'
 
 const props = defineProps({
     role: {
@@ -43,6 +44,29 @@ const navItemsForRole = computed(() => {
     return navItems[props.role] || [];
 });
 
+// Drives the ping indicator on "Applications and Notifications" —
+// only fetched for the Super Admin sidebar, since RSO/INTTO never
+// render that nav item at all. A failure here is logged but not
+// surfaced as an error to the user: a missing notification badge
+// isn't worth blocking the sidebar or showing an error banner over,
+// unlike a failed data load elsewhere in the app.
+const pendingApplicationsCount = ref(0);
+
+async function loadPendingApplicationsCount() {
+    try {
+        const applications = await getApplications();
+        pendingApplicationsCount.value = applications.length;
+    } catch (err) {
+        console.error('Failed to load pending applications count for sidebar badge:', err);
+    }
+}
+
+onMounted(() => {
+    if (props.role === 'Super Admin') {
+        loadPendingApplicationsCount();
+    }
+});
+
 function closeMobileMenu() {
     isMobileOpen.value = false;
 }
@@ -70,12 +94,19 @@ async function handleLogout() {
             <li v-for="navItem in navItemsForRole" :key="navItem.label">
                 <RouterLink
                     :to="navItem.route"
-                    class="flex h-10 w-full items-center justify-center gap-2 text-white rounded hover:bg-white/10 transition-all duration-300"
+                    class="relative flex h-10 w-full items-center justify-center gap-2 text-white rounded hover:bg-white/10 transition-all duration-300"
                     active-class="bg-white/10"
                     @click="closeMobileMenu"
                 >
                     <component :is="navItem.icon" class="w-5 h-5 shrink-0"/>
                     <span class="text-sm">{{ navItem.label }}</span>
+                    <!-- Ping indicator: only shown on the Applications and
+                         Notifications item, and only while there's at least
+                         one pending application waiting on review. -->
+                    <span v-if="navItem.route === '/super-admin/applications-and-notifications' && pendingApplicationsCount > 0" class="relative flex size-3">
+                        <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-400 opacity-75"></span>
+                        <span class="relative inline-flex size-3 rounded-full bg-sky-500"></span>
+                    </span>
                 </RouterLink>
             </li>
         </ul>
@@ -116,6 +147,13 @@ async function handleLogout() {
                             :class="isCollapsed ? 'left-1/2 -translate-x-1/2' : 'left-3 translate-x-0'"
                         >
                             <component :is="navItem.icon" class="w-5 h-5 shrink-0"/>
+                            <!-- Positioned on the icon itself so it's still
+                                 visible when the sidebar is collapsed to
+                                 icon-only width. -->
+                            <span v-if="navItem.route === '/super-admin/applications-and-notifications' && pendingApplicationsCount > 0" class="absolute top-0 right-0 flex size-3">
+                                <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-400 opacity-75"></span>
+                                <span class="relative inline-flex size-3 rounded-full bg-sky-500"></span>
+                            </span>
                         </span>
                         <transition name="fade-label">
                             <span
