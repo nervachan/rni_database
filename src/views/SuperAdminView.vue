@@ -1,11 +1,6 @@
 <script setup>
 
-import {ref} from 'vue';
-import {useRouter} from 'vue-router';
 import AppSidebar from '../components/AppSidebar.vue';
-import SuperAdminDashboard from './super-admin-pages/SuperAdminDashboard.vue';
-
-const router = useRouter();
 
 </script>
 
