@@ -5,7 +5,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
 } from '@heroicons/vue/24/outline';
-import { computed, ref, watch, onMounted } from 'vue';
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 import ReusableTable from '../../components/tables/ReusableTable.vue';
 import FilterControls from '../../components/filters/FilterControls.vue';
 import { getLogs } from '../../services/logService';
@@ -21,19 +21,43 @@ const logs = ref([]);
 const isLoading = ref(true);
 const loadError = ref('');
 
-async function loadLogs() {
-  isLoading.value = true;
+// isRefreshing guards against overlapping polling requests: if a fetch
+// is still in flight when the next interval fires, this skips starting
+// a second one instead of letting requests stack up.
+let isRefreshing = false;
+let pollIntervalId = null;
+
+// showLoadingState is only true on the very first call — background
+// polling refreshes shouldn't flash the full-page spinner every 25
+// seconds while someone's actively reading this page.
+async function loadLogs(showLoadingState = true) {
+  if (isRefreshing) return;
+  isRefreshing = true;
+  if (showLoadingState) isLoading.value = true;
   loadError.value = '';
   try {
     logs.value = await getLogs();
   } catch (err) {
     loadError.value = 'Failed to load logs. ' + err.message;
   } finally {
-    isLoading.value = false;
+    if (showLoadingState) isLoading.value = false;
+    isRefreshing = false;
   }
 }
 
-onMounted(loadLogs);
+onMounted(() => {
+  loadLogs();
+  // Polls every 25 seconds so new audit log entries show up without a
+  // manual refresh — same interval and reasoning as AppSidebar.vue and
+  // appliAndNotifs.vue.
+  pollIntervalId = setInterval(() => loadLogs(false), 25000);
+});
+
+onUnmounted(() => {
+  if (pollIntervalId) {
+    clearInterval(pollIntervalId);
+  }
+});
 
 const tableColumns = [
   { key: 'timestamp', label: 'Timestamp', widthClass: 'w-[12rem]' },
@@ -93,16 +117,6 @@ function goToPage(page) {
   }
 }
 
-
-
-// Displays a log's raw ISO timestamp (e.g. "2026-07-13T02:17:44.000Z")
-// as readable 24-hour/military time (e.g. "2026-07-13 02:17"). Built
-// by hand with getHours()/getMinutes() rather than toLocaleString(),
-// since toLocaleString()'s output format depends on the viewer's
-// browser locale — it could show 12-hour AM/PM time for some admins
-// and 24-hour time for others, which defeats the point of making this
-// consistent. Filtering (matchesDate above) still compares the raw
-// log.timestamp directly — this only changes what's displayed.
 function formatTimestamp(value) {
   if (!value) return '';
   const date = new Date(value);
