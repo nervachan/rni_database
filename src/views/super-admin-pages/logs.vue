@@ -5,7 +5,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
 } from '@heroicons/vue/24/outline';
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, onMounted } from 'vue';
 import ReusableTable from '../../components/tables/ReusableTable.vue';
 import FilterControls from '../../components/filters/FilterControls.vue';
 import { getLogs } from '../../services/logService';
@@ -17,7 +17,23 @@ const filterState = ref({ from: '', to: '', role: '' });
 const itemsPerPage = ref(10);
 const currentPage = ref(1);
 
-const logs = ref(getLogs());
+const logs = ref([]);
+const isLoading = ref(true);
+const loadError = ref('');
+
+async function loadLogs() {
+  isLoading.value = true;
+  loadError.value = '';
+  try {
+    logs.value = await getLogs();
+  } catch (err) {
+    loadError.value = 'Failed to load logs. ' + err.message;
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+onMounted(loadLogs);
 
 const tableColumns = [
   { key: 'timestamp', label: 'Timestamp', widthClass: 'w-[12rem]' },
@@ -82,10 +98,29 @@ function getSeverityClass(log) {
   if (log.severity === 'warning') return 'bg-yellow-100 text-yellow-800';
   return '';
 }
+
+// Displays a log's raw ISO timestamp (e.g. "2026-07-13T02:17:44.000Z")
+// as readable 24-hour/military time (e.g. "2026-07-13 02:17"). Built
+// by hand with getHours()/getMinutes() rather than toLocaleString(),
+// since toLocaleString()'s output format depends on the viewer's
+// browser locale — it could show 12-hour AM/PM time for some admins
+// and 24-hour time for others, which defeats the point of making this
+// consistent. Filtering (matchesDate above) still compares the raw
+// log.timestamp directly — this only changes what's displayed.
+function formatTimestamp(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
 </script>
 
 <template>
   <div class="flex flex-col gap-4">
+    <div v-if="loadError" class="bg-red-50 border border-red-200 text-red-700 text-xs sm:text-sm px-4 py-3 rounded-xl">
+      {{ loadError }}
+    </div>
+
     <div class="flex flex-col gap-4 md:flex-row">
       <div class="flex flex-1 items-center gap-1 rounded-full bg-gray-100 p-1 ring-1 ring-gray-300" :class="isFocused ? 'ring-2 ring-[#263e30]' : 'hover:ring-2 hover:ring-gray-500'">
         <button class="flex h-8 w-8 items-center justify-center rounded-full hover:bg-gray-300">
@@ -123,27 +158,36 @@ function getSeverityClass(log) {
       </div>
     </div>
 
-    <ReusableTable
-      :rows="paginatedLogs"
-      :columns="tableColumns"
-      :actions="[]"
-      empty-text="No logs found"
-      mobile-card-title-key="name"
-      mobile-card-subtitle-key="action"
-      :mobile-card-meta-keys="['timestamp', 'email', 'role']"
-    />
-
-    <div class="flex items-center justify-center gap-2 pt-2">
-      <button class="rounded border border-gray-300 p-2 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50" :disabled="currentPage === 1" @click="goToPage(currentPage - 1)">
-        <ChevronLeftIcon class="h-4 w-4" />
-      </button>
-      <button v-for="page in totalPages" :key="page" class="h-9 w-9 rounded-full text-sm transition" :class="currentPage === page ? 'bg-[#263e30] text-white' : 'border border-gray-300 text-gray-700 hover:bg-gray-100'" @click="goToPage(page)">
-        {{ page }}
-      </button>
-      <button class="rounded border border-gray-300 p-2 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50" :disabled="currentPage === totalPages" @click="goToPage(currentPage + 1)">
-        <ChevronRightIcon class="h-4 w-4" />
-      </button>
+    <div v-if="isLoading" class="flex items-center justify-center py-16">
+      <svg class="h-6 w-6 animate-spin text-[#263e30]" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+      </svg>
     </div>
+
+    <template v-else>
+      <ReusableTable
+        :rows="paginatedLogs.map((log) => ({ ...log, timestamp: formatTimestamp(log.timestamp) }))"
+        :columns="tableColumns"
+        :actions="[]"
+        empty-text="No logs found"
+        mobile-card-title-key="name"
+        mobile-card-subtitle-key="action"
+        :mobile-card-meta-keys="['timestamp', 'email', 'role']"
+      />
+
+      <div class="flex items-center justify-center gap-2 pt-2">
+        <button class="rounded border border-gray-300 p-2 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50" :disabled="currentPage === 1" @click="goToPage(currentPage - 1)">
+          <ChevronLeftIcon class="h-4 w-4" />
+        </button>
+        <button v-for="page in totalPages" :key="page" class="h-9 w-9 rounded-full text-sm transition" :class="currentPage === page ? 'bg-[#263e30] text-white' : 'border border-gray-300 text-gray-700 hover:bg-gray-100'" @click="goToPage(page)">
+          {{ page }}
+        </button>
+        <button class="rounded border border-gray-300 p-2 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50" :disabled="currentPage === totalPages" @click="goToPage(currentPage + 1)">
+          <ChevronRightIcon class="h-4 w-4" />
+        </button>
+      </div>
+    </template>
   </div>
 </template>
 
