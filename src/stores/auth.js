@@ -1,11 +1,26 @@
 // rni_database/src/stores/auth.js
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth'
 import { auth } from '../firebase'
 
 let resolveAuthReady
 const authReadyPromise = new Promise((resolve) => { resolveAuthReady = resolve })
+
+// How long a user can go with no interaction before being signed out
+// automatically. Five minutes was the specific number requested — not
+// a fixed rule, so this one constant is the only thing to change if
+// it turns out to feel too short or too long once people are actually
+// using it day to day.
+const IDLE_TIMEOUT_MS = 5 * 60 * 1000
+
+// DOM events treated as "the user is still here." These fire at the
+// window level regardless of which portal (Super Admin/RSO/INTTO) is
+// currently active, so the timeout applies uniformly everywhere without
+// needing to be wired into each portal separately. mousemove/scroll can
+// fire very often, so resetIdleTimer() below is kept cheap — it only
+// clears and re-arms a single setTimeout, no other state writes.
+const ACTIVITY_EVENTS = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart']
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
@@ -17,6 +32,48 @@ export const useAuthStore = defineStore('auth', () => {
     if (userRole.value === 'superadmin') return false
     if (!activeRole.value || !userRole.value) return true
     return activeRole.value !== userRole.value
+  })
+
+  // Plain variable, not a ref — nothing in the template or elsewhere
+  // needs to react to this value changing, it's purely internal
+  // bookkeeping for the timer itself.
+  let idleTimeoutId = null
+
+  function resetIdleTimer() {
+    if (idleTimeoutId) clearTimeout(idleTimeoutId)
+    idleTimeoutId = setTimeout(() => {
+      logout()
+    }, IDLE_TIMEOUT_MS)
+  }
+
+  function startIdleWatch() {
+    resetIdleTimer()
+    ACTIVITY_EVENTS.forEach((eventName) => {
+      window.addEventListener(eventName, resetIdleTimer, { passive: true })
+    })
+  }
+
+  function stopIdleWatch() {
+    if (idleTimeoutId) clearTimeout(idleTimeoutId)
+    idleTimeoutId = null
+    ACTIVITY_EVENTS.forEach((eventName) => {
+      window.removeEventListener(eventName, resetIdleTimer)
+    })
+  }
+
+  // Starts/stops the idle watch alongside real login state, covering
+  // both an explicit login() call and onAuthStateChanged firing on
+  // page load with an existing session — one place, instead of
+  // duplicating "start the timer" in both spots. Also means logout()
+  // (whether triggered by this timer or by a manual logout click)
+  // automatically tears the listeners down again, since logout() sets
+  // isLoggedIn.value = false at the end and this watch reacts to that.
+  watch(isLoggedIn, (loggedIn) => {
+    if (loggedIn) {
+      startIdleWatch()
+    } else {
+      stopIdleWatch()
+    }
   })
 
   async function login(email, password, selectedRole = null) {
