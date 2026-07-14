@@ -4,12 +4,14 @@ const { supabase } = require('../supabaseClient.cjs');
 const { verifyToken, requireRole } = require('../authMiddleware.cjs');
 const rateLimit = require('express-rate-limit');
 
-let auth = null;
-try {
-  ({ auth } = require('../firebase.cjs'));
-} catch (err) {
-  console.error('Firebase not configured (missing firebase-service-account.json). /api/applications routes that require Firebase will return 503 until it is added.');
-}
+// Firebase is required unconditionally. There is no supported mode where
+// this backend runs without it — every route below that touches Firebase
+// (application approve/reject, user status/role/email sync) assumes
+// `auth` exists. Wrapping this in try/catch and checking `if (auth)`
+// everywhere below would let a missing service account silently degrade
+// those routes into no-ops instead of crashing at startup, which is
+// where a missing credential is actually easy to notice and fix.
+const { auth } = require('../firebase.cjs');
 
 const app = express();
 
@@ -219,8 +221,13 @@ app.patch('/api/users/:id', verifyToken, requireRole('superadmin'), async (req, 
   // table displays. A Supabase-only failure after this leaves the UI
   // stale but access still correctly enforced — the safer of the two
   // possible half-done states.
+
   if (payload.status !== undefined) {
-    if (auth && existing.firebase_uid) {
+    // auth is guaranteed to exist now (see the top-level require above) —
+    // the only thing still worth checking here is whether this particular
+    // user actually has a firebase_uid on record.
+
+    if (existing.firebase_uid) {
       try {
         await auth.updateUser(existing.firebase_uid, { disabled: payload.status === 'Inactive' });
       } catch (err) {
@@ -236,7 +243,7 @@ app.patch('/api/users/:id', verifyToken, requireRole('superadmin'), async (req, 
   // status: if only one side succeeds, better it's the one that
   // actually governs access.
   if (payload.role !== undefined) {
-    if (auth && existing.firebase_uid) {
+    if (existing.firebase_uid) {
       try {
         await auth.setCustomUserClaims(existing.firebase_uid, { role: payload.role.toLowerCase() });
       } catch (err) {
@@ -255,7 +262,7 @@ app.patch('/api/users/:id', verifyToken, requireRole('superadmin'), async (req, 
   // and role: if only one side succeeds, better it's the one that
   // actually governs login, not the one that just changes a label.
   if (payload.email !== undefined) {
-    if (auth && existing.firebase_uid) {
+    if (existing.firebase_uid) {
       try {
         await auth.updateUser(existing.firebase_uid, { email: payload.email });
       } catch (err) {
@@ -625,11 +632,8 @@ app.post('/api/applications', async (req, res) => {
     return res.status(400).json({ error: 'Invalid role' });
   }
 
-  if (!auth) {
-    return res.status(503).json({ error: 'Firebase is not configured on this server yet.' });
-  }
-
   let userRecord;
+
   try {
     userRecord = await auth.createUser({
       email,
@@ -740,25 +744,26 @@ app.patch('/api/applications/:id/approve', verifyToken, requireRole('superadmin'
     }
   }
 
-  if (auth) {
-    try {
-      const normalizedRole = (application.role || '').toLowerCase();
+  // auth is guaranteed to exist now — no more "if (auth)" wrapper here.
+  // If Firebase itself is unreachable, the try/catch below still handles
+  // that the same way it always has (revert to pending, return 500).
+  try {
+    const normalizedRole = (application.role || '').toLowerCase();
 
-      if (!normalizedRole) {
-        // Guards against the .toLowerCase() crash this route used to
-        // have if role was ever null — now a clean 400 instead of an
-        // unhandled 500.
-        await revertToPending();
-        return res.status(400).json({ error: 'Application has no role set' });
-      }
-
-      await auth.setCustomUserClaims(application.firebase_uid, { role: normalizedRole });
-      await auth.updateUser(application.firebase_uid, { disabled: false });
-    } catch (err) {
-      console.error('Failed to set Firebase role/enable user:', err);
+    if (!normalizedRole) {
+      // Guards against the .toLowerCase() crash this route used to
+      // have if role was ever null — now a clean 400 instead of an
+      // unhandled 500.
       await revertToPending();
-      return res.status(500).json({ error: 'Failed to activate Firebase account: ' + err.message });
+      return res.status(400).json({ error: 'Application has no role set' });
     }
+
+    await auth.setCustomUserClaims(application.firebase_uid, { role: normalizedRole });
+    await auth.updateUser(application.firebase_uid, { disabled: false });
+  } catch (err) {
+    console.error('Failed to set Firebase role/enable user:', err);
+    await revertToPending();
+    return res.status(500).json({ error: 'Failed to activate Firebase account: ' + err.message });
   }
 
   const { error: insertError } = await supabase
@@ -828,12 +833,11 @@ app.patch('/api/applications/:id/reject', verifyToken, requireRole('superadmin')
     return res.status(409).json({ error: 'Application is not pending (already processed, or does not exist).' });
   }
 
-  if (auth) {
-    try {
-      await auth.deleteUser(application.firebase_uid);
-    } catch (deleteError) {
-      console.error('Failed to delete Firebase user:', deleteError);
-    }
+  // auth is guaranteed to exist now — no more "if (auth)" wrapper here.
+  try {
+    await auth.deleteUser(application.firebase_uid);
+  } catch (deleteError) {
+    console.error('Failed to delete Firebase user:', deleteError);
   }
 
   await logAction(`Rejected application: ${application.email}`, req, 'warning');
