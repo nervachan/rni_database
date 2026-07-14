@@ -9,7 +9,19 @@ const router = useRouter();
 const authStore = useAuthStore();
 const email = ref('');
 const emailError = ref('');
-const password = ref('');
+const password = ref('');} catch (err) {
+        // Same reasoning as LoginView.vue's identical catch block —
+        // auth/user-disabled means the account exists but was
+        // deactivated, which is a different problem than a wrong
+        // password and deserves a different message.
+        loginError.value = err.code === 'auth/user-disabled'
+            ? 'This account has been deactivated. Contact your administrator.'
+            : 'Invalid email or password.';
+        password.value = '';
+    } finally {
+        isSubmitting.value = false;
+    }
+}
 const passwordError = ref('');
 const loginError = ref('');
 const isSubmitting = ref(false);
@@ -47,7 +59,13 @@ async function handleLogin() {
 
         router.push('/super-admin/dashboard');
     } catch (err) {
-        loginError.value = 'Invalid email or password.';
+        // Same reasoning as LoginView.vue's identical catch block —
+        // auth/user-disabled means the account exists but was
+        // deactivated, which is a different problem than a wrong
+        // password and deserves a different message.
+        loginError.value = err.code === 'auth/user-disabled'
+            ? 'This account has been deactivated. Contact your administrator.'
+            : 'Invalid email or password.';
         password.value = '';
     } finally {
         isSubmitting.value = false;

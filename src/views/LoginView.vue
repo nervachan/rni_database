@@ -49,7 +49,19 @@ async function handleLogin() {
 
         router.push(`/${selectedRole}-admin/dashboard`);
     } catch (err) {
-        loginError.value = 'Invalid email or password.';
+        // auth/user-disabled is Firebase's specific code for "this
+        // account exists but has been deactivated" — distinct from a
+        // wrong password (auth/wrong-password) or an unknown email
+        // (auth/user-not-found). Showing the generic message for ALL
+        // three, like this used to, told a deactivated user their
+        // PASSWORD was wrong, which sends them straight to "forgot
+        // password" instead of "contact an admin" — the actual fix.
+        // Checking the code here doesn't leak whether an email exists;
+        // it only reveals account status, and only once someone has
+        // already supplied a correct password for it.
+        loginError.value = err.code === 'auth/user-disabled'
+            ? 'This account has been deactivated. Contact your administrator.'
+            : 'Invalid email or password.';
         password.value = '';
     } finally {
         isSubmitting.value = false;
@@ -61,7 +73,25 @@ function goToRegister() {
 }
 
 const showPassword = ref(false);
-
+} catch (err) {
+        // auth/user-disabled is Firebase's specific code for "this
+        // account exists but has been deactivated" — distinct from a
+        // wrong password (auth/wrong-password) or an unknown email
+        // (auth/user-not-found). Showing the generic message for ALL
+        // three, like this used to, told a deactivated user their
+        // PASSWORD was wrong, which sends them straight to "forgot
+        // password" instead of "contact an admin" — the actual fix.
+        // Checking the code here doesn't leak whether an email exists;
+        // it only reveals account status, and only once someone has
+        // already supplied a correct password for it.
+        loginError.value = err.code === 'auth/user-disabled'
+            ? 'This account has been deactivated. Contact your administrator.'
+            : 'Invalid email or password.';
+        password.value = '';
+    } finally {
+        isSubmitting.value = false;
+    }
+}
 </script>
 
 <template>
