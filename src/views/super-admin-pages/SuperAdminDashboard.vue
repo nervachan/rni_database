@@ -3,11 +3,16 @@
 import { UserIcon , LightBulbIcon , BellIcon , MagnifyingGlassIcon } from '@heroicons/vue/24/outline'
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { getUsers } from '../../services/userService'
-import { getApplications } from '../../services/applicationService'
 import { getLogs } from '../../services/logService'
+import { useApplicationsStore } from '../../stores/applications'
 
+// Reads the same shared pendingCount AppSidebar.vue's ping indicator
+// uses, instead of this dashboard fetching /api/applications on its
+// own. AppSidebar already keeps this fresh (mount + its own 25s poll,
+// regardless of which page is open) — fetching it a second time here
+// was firing the exact same request twice on every dashboard load.
+const applicationsStore = useApplicationsStore()
 const users = ref([])
-const pendingApplications = ref([])
 const recentLogs = ref([])
 const loadError = ref('')
 const isLoading = ref(true)
@@ -27,13 +32,11 @@ async function loadData(showLoadingState = true) {
   if (showLoadingState) isLoading.value = true
   loadError.value = ''
   try {
-    const [usersResult, applicationsResult, logsResult] = await Promise.all([
+    const [usersResult, logsResult] = await Promise.all([
       getUsers(),
-      getApplications(),
       getLogs(),
     ])
     users.value = usersResult
-    pendingApplications.value = applicationsResult
     recentLogs.value = logsResult.slice(0, 5)
   } catch (err) {
     loadError.value = 'Failed to load dashboard data. ' + err.message
@@ -60,7 +63,7 @@ onUnmounted(() => {
 const totalUser  = computed(() => users.value.length)
 const totalINTTO = computed(() => users.value.filter((u) => u.role === 'INTTO').length)
 const totalRSO   = computed(() => users.value.filter((u) => u.role === 'RSO').length)
-const totalPending = computed(() => pendingApplications.value.length)
+const totalPending = computed(() => applicationsStore.pendingCount)
 
 function formatTimestamp(value) {
   if (!value) return ''
