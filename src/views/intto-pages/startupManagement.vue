@@ -715,17 +715,29 @@ isSavingProject.value = true
 
           <template v-else> <!-- No Project Selected -->
             <div class="grid gap-4 grid-cols-1 sm:grid-cols-3 p-5">
-              <div class="rounded-[2rem] bg-gray-100 p-4 text-black ">
+              <!-- flex flex-col + h-full on each card, mt-auto on the
+                   number: grid cells already stretch to match the
+                   tallest card in the row (CSS Grid's default), but the
+                   number was pinned a fixed distance below its OWN
+                   label with mt-4 — so if "In Selected Cohort" ever
+                   wraps to two lines at a narrower width while the
+                   other two stay on one line, that card's number sits
+                   a full line lower than the other two even though all
+                   three cards are the same height. mt-auto pushes the
+                   number to the bottom of its card instead, so all
+                   three line up regardless of how many lines a label
+                   takes. -->
+              <div class="flex h-full flex-col rounded-[2rem] bg-gray-100 p-4 text-black ">
                 <p class="text-xs uppercase tracking-widest text-slate-600">Total Startups</p>
-                <p class="mt-4 text-3xl font-semibold">{{ localStartups.length }}</p>
+                <p class="mt-auto text-3xl font-semibold">{{ localStartups.length }}</p>
               </div>
-              <div class="rounded-[2rem] bg-gray-100 p-4 text-black">
+              <div class="flex h-full flex-col rounded-[2rem] bg-gray-100 p-4 text-black">
                 <p class="text-xs uppercase tracking-widest text-slate-400">Cohorts</p>
-                <p class="mt-4 text-3xl font-semibold">{{ localCohorts.length }}</p>
+                <p class="mt-auto text-3xl font-semibold">{{ localCohorts.length }}</p>
               </div>
-              <div class="rounded-[2rem] bg-gray-100 p-4 text-black">
+              <div class="flex h-full flex-col rounded-[2rem] bg-gray-100 p-4 text-black">
                 <p class="text-xs uppercase tracking-widest text-slate-400">In Selected Cohort</p>
-                <p class="mt-4 text-3xl font-semibold">{{ activeCohortCount }}</p>
+                <p class="mt-auto text-3xl font-semibold">{{ activeCohortCount }}</p>
               </div>
             </div>
             <div class="mt-4 mx-5 mb-5 rounded-[2rem] bg-gray-100 p-5">
