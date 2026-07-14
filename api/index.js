@@ -118,15 +118,26 @@ const failedLoginLimiter = rateLimit({
 // runs; losing the audit trail entry for it is a server-side problem
 // worth seeing in the console, not a reason to tell the user their
 // request failed when it didn't.
+
+
+
+
 async function logAction(action, req, severity = 'normal') {
+  // supabase-js does NOT throw on a failed insert — it resolves with
+  // { error } instead. The try/catch below only ever catches a
+  // network-level failure (DNS, connection refused, etc.); it does
+  // nothing for the far more common case of a rejected insert (bad
+  // column, RLS policy, etc.), which used to fail completely silently.
+  // Checking `error` explicitly is what actually surfaces that failure.
   try {
-    await supabase.from('logs').insert({
+    const { error } = await supabase.from('logs').insert({
       action,
       actor_name: req.user?.name || null,
       actor_email: req.user?.email || null,
       actor_role: req.user?.role || null,
       severity,
     });
+    if (error) console.error('Failed to write audit log:', error);
   } catch (err) {
     console.error('Failed to write audit log:', err);
   }
@@ -138,9 +149,16 @@ async function logAction(action, req, severity = 'normal') {
 // fail the request that triggered it. The real action (application
 // submitted, application approved) has already succeeded by the time
 // this runs.
+
+
+
 async function logNotification(text) {
+  // Same reasoning as logAction() above: supabase-js resolves with
+  // { error } on a failed insert rather than throwing, so that has to
+  // be checked explicitly or a failed write disappears with no trace.
   try {
-    await supabase.from('notifications').insert({ text });
+    const { error } = await supabase.from('notifications').insert({ text });
+    if (error) console.error('Failed to write notification:', error);
   } catch (err) {
     console.error('Failed to write notification:', err);
   }
@@ -670,13 +688,16 @@ app.post('/api/applications', async (req, res) => {
   }
 
   try {
-    await supabase.from('logs').insert({
+    const { error: logError } = await supabase.from('logs').insert({
       action: `New application submitted: ${email}`,
       actor_name: `${firstName} ${lastName}`,
       actor_email: email,
       actor_role: role,
       severity: 'normal',
     });
+    // Same reasoning as logAction()/logNotification() above — a rejected
+    // insert here resolves with { error }, it doesn't throw.
+    if (logError) console.error('Failed to write audit log:', logError);
   } catch (logErr) {
     console.error('Failed to write audit log:', logErr);
   }
@@ -917,13 +938,16 @@ app.post('/api/logs/failed-login', failedLoginLimiter, async (req, res) => {
     console.error('Failed to evaluate failed login threshold:', err);
   }
   try {
-    await supabase.from('logs').insert({
+    const { error } = await supabase.from('logs').insert({
       action: `Failed login attempt: ${email}`,
       actor_name: null,
       actor_email: email,
       actor_role: null,
       severity,
     });
+    // Same reasoning as every other insert in this file — a rejected
+    // insert resolves with { error }, it doesn't throw.
+    if (error) console.error('Failed to write audit log:', error);
   } catch (err) {
     console.error('Failed to write audit log:', err);
   }
