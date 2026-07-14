@@ -210,6 +210,19 @@ app.patch('/api/users/:id', verifyToken, requireRole('superadmin'), async (req, 
     return res.status(400).json({ error: 'Invalid role' });
   }
 
+  // status is a security control too, not just a display value — it's
+  // what decides the Firebase `disabled` flag a few lines down. Without
+  // this check, any string sails through pick() (status is in that
+  // allow-list) and gets compared with `=== 'Inactive'`. Anything that
+  // ISN'T exactly that string — a typo, 'inactive' lowercase, trailing
+  // whitespace — evaluates to false and silently RE-ENABLES the account,
+  // while the users table displays whatever garbage was sent. Same
+  // allow-list pattern as ALLOWED_USER_ROLES just above.
+  const ALLOWED_USER_STATUSES = ['Active', 'Inactive'];
+  if (payload.status !== undefined && !ALLOWED_USER_STATUSES.includes(payload.status)) {
+    return res.status(400).json({ error: 'Invalid status' });
+  }
+
   // status, role, and email changes all need the user's firebase_uid
   // before anything else can happen: status maps to Firebase's
   // `disabled` flag, role maps to the custom claim requireRole()
