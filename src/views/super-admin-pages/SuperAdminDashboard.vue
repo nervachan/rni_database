@@ -72,6 +72,18 @@ function formatTimestamp(value) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
+// Matches ReusableTable.vue's getRowClasses() exactly — that's what
+// gives logs.vue (the real Logs page) its red/yellow severity coloring.
+// This dashboard preview uses its own plain <table> instead of
+// ReusableTable, so it never picked up that same behavior even though
+// getLogs() already returns severity on every row. index is still used
+// for the plain alternating stripe when there's no severity to flag.
+function logRowClass(log, index) {
+  if (log.severity === 'critical') return 'bg-red-100'
+  if (log.severity === 'warning') return 'bg-yellow-100'
+  return index % 2 === 0 ? 'bg-white' : 'bg-gray-100'
+}
+
 </script>
 
 <template>
@@ -134,7 +146,7 @@ function formatTimestamp(value) {
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="(log, index) in recentLogs" :key="log.id" :class="index % 2 === 0 ? 'bg-white' : 'bg-gray-100'">
+                        <tr v-for="(log, index) in recentLogs" :key="log.id" :class="logRowClass(log, index)">
                             <td class="px-3 py-2">{{ log.name }}</td>
                             <td class="px-3 py-2">{{ log.role }}</td>
                             <td class="px-3 py-2">{{ log.action }}</td>

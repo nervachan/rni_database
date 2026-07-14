@@ -182,6 +182,65 @@ async function logNotification(text) {
   }
 }
 
+// Auto-deactivates a user's account after repeated failed login
+// attempts. Looked up by EMAIL rather than any kind of user id or
+// token, since a failed login is the one place in this backend with no
+// valid Firebase token to identify who's calling — email is the only
+// thing the request actually carries.
+//
+// Quietly does nothing (no error, no log entry) if:
+//   - the email doesn't match any row in `users` at all — most failed
+//     logins are just a typo'd, non-existent email, not an attack on a
+//     real account, and there's nothing to deactivate.
+//   - the account is already 'Inactive' — avoids re-disabling an
+//     already-disabled account and spamming the Logs page with repeat
+//     entries every time someone keeps trying a dead account's password.
+async function deactivateUserByEmail(email) {
+  const { data: user, error: fetchError } = await supabase
+    .from('users')
+    .select('id, name, email, role, firebase_uid, status')
+    .eq('email', email)
+    .maybeSingle();
+
+  if (fetchError) {
+    console.error('Failed to look up user for auto-deactivation:', fetchError);
+    return;
+  }
+  if (!user || user.status === 'Inactive') return;
+
+  // Firebase FIRST, same ordering as every other status change in this
+  // file (see PATCH /api/users/:id) — if only one side succeeds, better
+  // it's the one that actually blocks login, not just the one that
+  // changes what the users table displays.
+  if (user.firebase_uid) {
+    try {
+      await auth.updateUser(user.firebase_uid, { disabled: true });
+    } catch (err) {
+      console.error('Failed to disable Firebase account after repeated failed logins:', err);
+      return;
+    }
+  }
+
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({ status: 'Inactive' })
+    .eq('id', user.id);
+
+  if (updateError) {
+    console.error('Failed to set user Inactive after repeated failed logins:', updateError);
+    return;
+  }
+
+  const { error: logError } = await supabase.from('logs').insert({
+    action: `Account automatically deactivated after repeated failed login attempts: ${email}`,
+    actor_name: user.name,
+    actor_email: email,
+    actor_role: user.role,
+    severity: 'critical',
+  });
+  if (logError) console.error('Failed to write audit log:', logError);
+}
+
 // Test endpoint
 app.get('/api/test', (req, res) => {
   res.json({ message: 'Backend is working' });
@@ -311,7 +370,7 @@ app.patch('/api/users/:id', verifyToken, requireRole('superadmin'), async (req, 
   // and role: if only one side succeeds, better it's the one that
   // actually governs login, not the one that just changes a label.
  if (payload.email !== undefined) {
-    if (auth && existing.firebase_uid) {
+    if (existing.firebase_uid) {
       try {
         await auth.updateUser(existing.firebase_uid, { email: payload.email });
       } catch (err) {
@@ -331,7 +390,7 @@ app.patch('/api/users/:id', verifyToken, requireRole('superadmin'), async (req, 
   // display/attribution only — nothing here governs login access the
   // way the fields above it do.
   if (payload.name !== undefined) {
-    if (auth && existing.firebase_uid) {
+    if (existing.firebase_uid) {
       try {
         await auth.updateUser(existing.firebase_uid, { displayName: payload.name });
       } catch (err) {
@@ -1028,6 +1087,15 @@ app.post('/api/logs/failed-login', failedLoginLimiter, async (req, res) => {
     if (error) console.error('Failed to write audit log:', error);
   } catch (err) {
     console.error('Failed to write audit log:', err);
+  }
+
+  // Threshold reached: deactivate the account (if a real one exists
+  // for this email) instead of just flagging the log entry critical.
+  // Runs AFTER the audit-log insert above, so the failed attempt
+  // itself is always recorded first regardless of whether the
+  // deactivation itself succeeds.
+  if (severity === 'critical') {
+    await deactivateUserByEmail(email);
   }
 
   res.json({ success: true });
