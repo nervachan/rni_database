@@ -38,7 +38,11 @@ const isImporting = ref(false)
 const search       = ref('')
 const filterStatus = ref('')
 const filterClass  = ref('')
-const sortKey      = ref('')
+// Defaults to 'dateDesc' (Newest – Oldest) instead of '' (unsorted).
+// Previously nothing matched any of the sort branches further down
+// until a person manually picked an option, so records displayed in
+// raw database order on first load.
+const sortKey      = ref('dateDesc')
 const itemsPerPage = ref(10)
 const currentPage  = ref(1)
 const exportFormat = ref('csv')
@@ -547,8 +551,13 @@ function statusClass(status) {
         <option value="">Sort by...</option>
         <option value="title">Title A–Z</option>
         <option value="titleDesc">Title Z–A</option>
-        <option value="date">Filing date ↑</option>
-        <option value="dateDesc">Filing date ↓</option>
+        <!-- "dateDesc" sorts newest filing date first (see displayedRows
+             below) — listed first here since it's now the default sort,
+             matching the same Newest-first-in-the-list convention
+             already used in userMgmt.vue's and resEntryMgmt.vue's own
+             sort dropdowns. -->
+        <option value="dateDesc">Newest – Oldest</option>
+        <option value="date">Oldest – Newest</option>
       </select>
 
       <div class="flex items-center gap-2 ml-auto">

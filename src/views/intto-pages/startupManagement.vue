@@ -15,7 +15,7 @@
  */
 
 import { ref, computed, watch, onMounted } from 'vue'
-import { getCohorts, getStartups, createCohort, createStartup, updateStartup, deleteStartup } from '../../services/startupService.js'
+import { getStartupBoardData, createCohort, createStartup, updateStartup, deleteStartup } from '../../services/startupService.js'
 
 // --- Navigation / selection state ---
 const activeCohortId  = ref(null)   // id of the cohort currently shown in column 2
@@ -60,8 +60,12 @@ const localStartups = ref([])   // all startups, across all cohorts (filtered pe
 async function loadData() {
   loadError.value = ''
   try {
-    localCohorts.value   = await getCohorts()
-    localStartups.value  = await getStartups()
+    // One call, one round trip to each of /cohorts and /startups run in
+    // parallel — see getStartupBoardData() in startupService.js for why
+    // this replaced the old getCohorts() + getStartups() combo.
+    const { cohorts, startups } = await getStartupBoardData()
+    localCohorts.value   = cohorts
+    localStartups.value  = startups
     activeCohortId.value = localCohorts.value[0]?.id ?? null
   } catch (err) {
     loadError.value = 'Failed to load startup data. ' + err.message
