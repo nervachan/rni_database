@@ -111,6 +111,24 @@ const failedLoginLimiter = rateLimit({
   },
 });
 
+// Rate limiter for the other unauthenticated write endpoint in this
+// backend: public registration. Each request creates a real Firebase
+// user plus an `applications` row — without a server-side limit, this
+// is scriptable into unlimited account creation the same way failed
+// logins were before failedLoginLimiter existed above. A longer window
+// and lower max than failed-login: registration is a deliberate,
+// infrequent action for a real applicant, not something that should
+// ever legitimately happen 5+ times a minute from the same IP.
+const applicationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5,                    // 5 submissions per IP per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    res.status(429).json({ error: 'Too many applications submitted. Please wait before trying again.' });
+  },
+});
+
 // Writes one row to the audit log. Failures here are deliberately caught
 // and swallowed (not re-thrown) — a failed audit-log write should never
 // cause the actual request it's attached to fail. The real action (the
@@ -642,7 +660,7 @@ app.get('/api/applications', verifyToken, requireRole('superadmin'), async (req,
 });
 
 // Submit an application - public, no auth required (this is registration)
-app.post('/api/applications', async (req, res) => {
+app.post('/api/applications', applicationLimiter, async (req, res) => {
   const { email, password, firstName, lastName, role } = req.body;
 
   if (!email || !password || !firstName || !lastName || !role) {
