@@ -248,7 +248,7 @@ app.patch('/api/users/:id', verifyToken, requireRole('superadmin'), async (req, 
   // logins against. Fetched once up front and reused for whichever of
   // the three fields is present.
   let existing = null;
-  if (payload.status !== undefined || payload.role !== undefined || payload.email !== undefined) {
+  if (payload.status !== undefined || payload.role !== undefined || payload.email !== undefined || payload.name !== undefined) {
     const { data, error: fetchError } = await supabase
       .from('users')
       .select('firebase_uid')
@@ -310,13 +310,33 @@ app.patch('/api/users/:id', verifyToken, requireRole('superadmin'), async (req, 
   // old address too. Synced Firebase FIRST, same ordering as status
   // and role: if only one side succeeds, better it's the one that
   // actually governs login, not the one that just changes a label.
-  if (payload.email !== undefined) {
-    if (existing.firebase_uid) {
+ if (payload.email !== undefined) {
+    if (auth && existing.firebase_uid) {
       try {
         await auth.updateUser(existing.firebase_uid, { email: payload.email });
       } catch (err) {
         console.error('Failed to sync Firebase email:', err);
         return res.status(500).json({ error: 'Failed to update account email: ' + err.message });
+      }
+    }
+  }
+
+  // Name isn't a security boundary the way status/role/email are, but
+  // it still needs syncing: verifyToken() reads decodedToken.name
+  // straight off the Firebase ID token claim, and every logAction() call
+  // uses that value. Without this, renaming someone here updates what
+  // userMgmt.vue displays but audit logs keep showing their OLD name for
+  // every action they take afterward, since nothing ever told Firebase
+  // the name changed. Synced last (after status/role/email) since it's
+  // display/attribution only — nothing here governs login access the
+  // way the fields above it do.
+  if (payload.name !== undefined) {
+    if (auth && existing.firebase_uid) {
+      try {
+        await auth.updateUser(existing.firebase_uid, { displayName: payload.name });
+      } catch (err) {
+        console.error('Failed to sync Firebase display name:', err);
+        return res.status(500).json({ error: 'Failed to update account name: ' + err.message });
       }
     }
   }
