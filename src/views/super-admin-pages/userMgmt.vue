@@ -103,7 +103,11 @@ const filteredUsers = computed(() => {
     const matchesQuery = !q || [user.name, user.email].some((value) => value?.toLowerCase().includes(q));
 
     const from = filterState.value.from ? new Date(filterState.value.from) : null;
-    const to = filterState.value.to ? new Date(filterState.value.to) : null;
+    // Same reasoning as logs.vue's identical filter: new Date('2026-07-14')
+    // parses to midnight on that day, so comparing with <= excluded
+    // everything approved after 00:00 on the selected "to" date — nearly
+    // every real approvedAt value. Pushed to the end of that day instead.
+    const to = filterState.value.to ? new Date(filterState.value.to).setHours(23, 59, 59, 999) : null;
     const approved = user.approvedAt ? new Date(user.approvedAt) : null;
     const matchesDate = (!from || !approved || approved >= from) && (!to || !approved || approved <= to);
 

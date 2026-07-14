@@ -73,7 +73,12 @@ const filteredLogs = computed(() => {
     const matchesQuery = !q || log.name?.toLowerCase().includes(q);
 
     const from = filterState.value.from ? new Date(filterState.value.from) : null;
-    const to = filterState.value.to ? new Date(filterState.value.to) : null;
+    // new Date('2026-07-14') parses to midnight (00:00:00) on that day —
+    // comparing a real timestamp against it with <= excluded everything
+    // logged after midnight on the selected "to" date, which is nearly
+    // every entry. setHours() pushes it to the last millisecond of that
+    // day instead, so picking a date actually includes that whole day.
+    const to = filterState.value.to ? new Date(filterState.value.to).setHours(23, 59, 59, 999) : null;
     const timestamp = log.timestamp ? new Date(log.timestamp) : null;
     const matchesDate = (!from || !timestamp || timestamp >= from) && (!to || !timestamp || timestamp <= to);
 
