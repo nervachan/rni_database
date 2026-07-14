@@ -129,7 +129,13 @@ function handleApplicationAction({ action, row }) {
       // the applications array locally.
       await loadData();
     } catch (err) {
-      loadError.value = `Failed to ${label} application.`;
+      // err.message here is the backend's real reason (api.js's response
+      // interceptor unwraps it) — most importantly the 409 "Application
+      // is not pending (already processed, or does not exist)" case from
+      // a double-click or a stale row. The old generic message hid that
+      // and left no way to tell a real failure from someone else already
+      // having approved/rejected the same application first.
+      loadError.value = `Failed to ${label} application. ${err.message}`;
     }
   });
 }
