@@ -61,7 +61,14 @@ function getRowClasses(row) {
   const severity = row?.severity;
   if (severity === 'critical') return '!bg-red-100';
   if (severity === 'warning') return '!bg-yellow-100';
-  return '!bg-white';
+  // Empty string, not '!bg-white'. The desktop <tr> below already
+  // applies its own alternating index % 2 white/gray class — '!bg-white'
+  // here used Tailwind's !important modifier, which unconditionally beat
+  // that alternating class on every row with no severity, regardless of
+  // index. Returning nothing here lets the alternating class actually
+  // show through; only a real critical/warning severity should force an
+  // override.
+  return '';
 }
 
 function getStatusClasses(value) {
@@ -127,7 +134,7 @@ function getStatusClasses(value) {
       <div v-if="rows.length === 0" class="rounded-lg border border-gray-200 bg-white p-4 text-center text-sm text-gray-500">
         {{ emptyText }}
       </div>
-      <div v-for="(row, index) in rows" v-else :key="row.id || index" class="rounded-lg border border-gray-200 p-4 shadow-sm" :class="[getRowClasses(row)]">
+      <div v-for="(row, index) in rows" v-else :key="row.id || index" class="rounded-lg border border-gray-200 p-4 shadow-sm" :class="['bg-white', getRowClasses(row)]">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0 flex-1">
             <p class="truncate font-semibold text-gray-800">{{ row[mobileCardTitleKey] }}</p>
