@@ -45,8 +45,14 @@ export async function getResearchEntries() {
     const { data } = await api.get('/research-entries')
     entries = data.entries
   } catch (err) {
-    const status = err.response?.status ?? 'network error'
-    throw new Error(`Failed to load research entries (${status})`)
+    // err here is already a plain Error thrown by api.js's response
+    // interceptor, which pulls the backend's real message out of
+    // error.response.data.error — err.response doesn't exist on it.
+    // Reading err.response?.status (the old code) was always undefined,
+    // so every failure showed "(network error)" no matter what actually
+    // went wrong. err.message is the real reason, same as every other
+    // service file in this project.
+    throw new Error(`Failed to load research entries. ${err.message}`)
   }
 
   return entries.map(toClientRecord)
@@ -61,8 +67,9 @@ export async function createResearchEntry(payload) {
     const { data } = await api.post('/research-entries', toDbPayload(payload))
     entry = data.entry
   } catch (err) {
-    const status = err.response?.status ?? 'network error'
-    throw new Error(`Failed to create research entry (${status})`)
+    // Same reasoning as getResearchEntries() above — err is already a
+    // plain Error with the real backend message on err.message.
+    throw new Error(`Failed to create research entry. ${err.message}`)
   }
 
   return toClientRecord(entry)
@@ -75,8 +82,8 @@ export async function updateResearchEntry(id, payload) {
     const { data } = await api.patch(`/research-entries/${id}`, toDbPayload(payload))
     entry = data.entry
   } catch (err) {
-    const status = err.response?.status ?? 'network error'
-    throw new Error(`Failed to update research entry (${status})`)
+    // Same reasoning as getResearchEntries() above.
+    throw new Error(`Failed to update research entry. ${err.message}`)
   }
 
   return toClientRecord(entry)
@@ -87,8 +94,8 @@ export async function deleteResearchEntry(id) {
   try {
     await api.delete(`/research-entries/${id}`)
   } catch (err) {
-    const status = err.response?.status ?? 'network error'
-    throw new Error(`Failed to delete research entry (${status})`)
+    // Same reasoning as getResearchEntries() above.
+    throw new Error(`Failed to delete research entry. ${err.message}`)
   }
   return true
 }
