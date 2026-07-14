@@ -94,7 +94,16 @@ function getStatusClasses(value) {
                 </div>
               </template>
               <template v-else-if="column.type === 'link'">
-                <a :href="row[column.key]" class="block truncate text-blue-600 underline hover:text-blue-800">{{ column.linkText || 'Link' }}</a>
+                <!-- target="_blank" opens the link in a new tab instead of
+                     navigating away from the app. rel="noopener noreferrer"
+                     goes with it: without noopener, the new tab gets a
+                     window.opener reference back to this page, which the
+                     linked site could use to redirect it somewhere else;
+                     noreferrer additionally stops this page's URL from
+                     being sent in the Referer header. Both are standard
+                     practice any time target="_blank" points at a link
+                     someone else controls. -->
+                <a :href="row[column.key]" target="_blank" rel="noopener noreferrer" class="block truncate text-blue-600 underline hover:text-blue-800">{{ column.linkText || 'Link' }}</a>
               </template>
               <template v-else-if="column.type === 'status-select'">
                 <div class="flex items-center gap-2">
