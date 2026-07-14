@@ -14,18 +14,33 @@ let classificationsCache = null
 async function getClassificationsMap() {
   if (classificationsCache) return classificationsCache
 
-  let classifications
-  try {
-    const { data } = await api.get('/classifications')
-    classifications = data.classifications
-  } catch (err) {
-    throw new Error(`Failed to load classifications: ${err.message}`)
-  }
+  // Cache the in-flight PROMISE itself, not just the value it resolves
+  // to. The old version only cached the resolved result — while that
+  // first request is still in flight, classificationsCache is still
+  // null, so any concurrent caller (e.g. inttoDashboard.vue and
+  // ipManagement.vue both mounting around the same time) sees null too
+  // and fires its own separate /classifications request. Storing the
+  // promise here means every caller that arrives before it settles
+  // awaits the SAME request instead of starting a new one.
+  classificationsCache = (async () => {
+    let classifications
+    try {
+      const { data } = await api.get('/classifications')
+      classifications = data.classifications
+    } catch (err) {
+      // Clear the cache on failure so the NEXT call gets a fresh
+      // attempt, instead of every future call being stuck awaiting
+      // this same rejected promise forever.
+      classificationsCache = null
+      throw new Error(`Failed to load classifications: ${err.message}`)
+    }
 
-  classificationsCache = {
-    byId:   new Map(classifications.map(c => [c.id, c.classification_name])),
-    byName: new Map(classifications.map(c => [c.classification_name, c.id])),
-  }
+    return {
+      byId:   new Map(classifications.map(c => [c.id, c.classification_name])),
+      byName: new Map(classifications.map(c => [c.classification_name, c.id])),
+    }
+  })()
+
   return classificationsCache
 }
 
