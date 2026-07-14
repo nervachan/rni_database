@@ -286,17 +286,70 @@ function exportRows() {
 }
 
 function parseCsv(text) {
-  const lines = text.trim().split(/\r?\n/).filter(line => line.trim())
-  if (!lines.length) return []
-  const headers = lines[0].split(',').map(h => h.trim().toLowerCase())
-  return lines.slice(1).map(line => {
-    const values = line.split(',').map(v => v.trim())
-    const record = {}
-    headers.forEach((key, idx) => {
-      record[key] = values[idx] ?? ''
+  // Character-level parser instead of naive split(',') / split(/\r?\n/).
+  // exportUtils.js's buildCsvContent() quotes EVERY field and doubles any
+  // internal quote (e.g. multiple inventors becomes "Smith, J., Doe, A."
+  // with real quote marks around it). A plain comma/newline split has no
+  // concept of "this comma is inside quotes" — it was cutting a quoted
+  // field into extra columns, shifting every value after it one column
+  // to the right. This walks the text one character at a time and tracks
+  // whether it's currently inside a quoted field, so commas and newlines
+  // inside quotes are read as literal text instead of separators.
+  const rows = []
+  let row = []
+  let field = ''
+  let insideQuotes = false
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i]
+    const next = text[i + 1]
+
+    if (insideQuotes) {
+      if (char === '"' && next === '"') {
+        field += '"'
+        i++ // skip the second quote — "" inside quotes means one literal quote
+      } else if (char === '"') {
+        insideQuotes = false
+      } else {
+        field += char
+      }
+    } else if (char === '"') {
+      insideQuotes = true
+    } else if (char === ',') {
+      row.push(field.trim())
+      field = ''
+    } else if (char === '\r') {
+      // Ignore — the \n right after it (or a lone \n) is what actually
+      // ends the row, handled below.
+    } else if (char === '\n') {
+      row.push(field.trim())
+      rows.push(row)
+      row = []
+      field = ''
+    } else {
+      field += char
+    }
+  }
+
+  // The final field/row has no trailing newline to trigger the push
+  // above — flush whatever's left, unless the file already ended
+  // cleanly on a blank line.
+  if (field.length || row.length) {
+    row.push(field.trim())
+    rows.push(row)
+  }
+
+  if (!rows.length) return []
+  const headers = rows[0].map(h => h.toLowerCase())
+  return rows.slice(1)
+    .filter(row => row.some(value => value !== '')) // skip blank trailing lines
+    .map(row => {
+      const record = {}
+      headers.forEach((key, idx) => {
+        record[key] = row[idx] ?? ''
+      })
+      return record
     })
-    return record
-  })
 }
 
 async function handleImportFile(event) {
