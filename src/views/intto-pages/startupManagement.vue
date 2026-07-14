@@ -15,6 +15,7 @@
  */
 
 import { ref, computed, watch, onMounted } from 'vue'
+import { ChevronDownIcon } from '@heroicons/vue/24/outline'
 import { getStartupBoardData, createCohort, createStartup, updateStartup, deleteStartup } from '../../services/startupService.js'
 
 // --- Navigation / selection state ---
@@ -822,10 +823,17 @@ isSavingProject.value = true
           <input
             v-model="newProject.genre"
             placeholder="Genre (e.g. HealthTech)"
-            class="w-full rounded-2xl border border-gray-200 bg-gray-100 px-4 py-3 text-sm text-black outline-none focus:border-[#263e30]"
+            class="w-full rounded-2xl border border-gray-200 bg-gray-100 py-3 pl-4 pr-10 text-sm text-black outline-none focus:border-[#263e30]"
             @focus="showAddGenreSuggestions = true"
             @blur="showAddGenreSuggestions = false"
           />
+          <!-- This is a free-text input with a custom suggestion list
+               below it (matchingGenres()), not a native <select> — so
+               without this icon there's nothing telling a person that
+               typing here shows existing genre options. pointer-events-none
+               so the icon never blocks clicking/focusing the input
+               underneath it. -->
+          <ChevronDownIcon class="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <ul
             v-if="showAddGenreSuggestions && matchingGenres(newProject.genre).length"
             class="absolute z-10 mt-1 w-full max-h-40 overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-lg"
@@ -897,10 +905,12 @@ isSavingProject.value = true
           <input
             v-model="editForm.genre"
             placeholder="Genre"
-            class="w-full rounded-2xl border border-gray-200 bg-gray-100 px-4 py-3 text-sm text-black outline-none focus:border-[#263e30]"
+            class="w-full rounded-2xl border border-gray-200 bg-gray-100 py-3 pl-4 pr-10 text-sm text-black outline-none focus:border-[#263e30]"
             @focus="showEditGenreSuggestions = true"
             @blur="showEditGenreSuggestions = false"
           />
+          <!-- Same reasoning as the Add Project genre input above. -->
+          <ChevronDownIcon class="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <ul
             v-if="showEditGenreSuggestions && matchingGenres(editForm.genre).length"
             class="absolute z-10 mt-1 w-full max-h-40 overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-lg"
