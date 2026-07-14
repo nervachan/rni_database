@@ -786,7 +786,31 @@ app.patch('/api/applications/:id/approve', verifyToken, requireRole('superadmin'
   // If anything below fails, the application must be put back to
   // 'pending' — otherwise it's stuck on 'processing' forever and can
   // never be approved or rejected again through the normal UI.
-  async function revertToPending() {
+  //
+  // revertFirebase defaults to false because most of the failure points
+  // below happen BEFORE the Firebase account is actually enabled — there's
+  // nothing to undo on that side yet. The one exception is the `users`
+  // insert failing: by that point setCustomUserClaims() and
+  // updateUser({ disabled: false }) have already succeeded, so the
+  // Firebase account is live and enabled with no `users` row behind it.
+  // Passing revertFirebase = true there re-disables the account and
+  // clears the role claim, so a failed approve never leaves a real,
+  // login-capable account that nothing in this app is tracking.
+  async function revertToPending(revertFirebase = false) {
+    if (revertFirebase) {
+      try {
+        await auth.updateUser(application.firebase_uid, { disabled: true });
+        await auth.setCustomUserClaims(application.firebase_uid, { role: null });
+      } catch (err) {
+        // Logged as critical, not just an error — this is the case where
+        // an account may be left enabled with nothing tracking it, and
+        // it needs a human to check Firebase directly rather than trust
+        // this cleanup silently worked.
+        console.error(`Failed to revert Firebase state for application ${id} after a failed approve:`, err);
+        await logAction(`Application ${application.email} approve failed and Firebase revert also failed — needs manual fix`, req, 'critical');
+      }
+    }
+
     const { error: revertError } = await supabase
       .from('applications')
       .update({ status: 'pending' })
@@ -831,7 +855,10 @@ app.patch('/api/applications/:id/approve', verifyToken, requireRole('superadmin'
 
   if (insertError) {
     console.error(insertError);
-    await revertToPending();
+    // true: by this point Firebase's setCustomUserClaims/updateUser above
+    // already succeeded, so the Firebase side needs undoing too — not
+    // just the applications row.
+    await revertToPending(true);
     return res.status(500).json({ error: insertError.message });
   }
 
