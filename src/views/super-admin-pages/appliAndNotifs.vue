@@ -1,12 +1,15 @@
 <script setup>
 import { CheckIcon, XMarkIcon } from '@heroicons/vue/24/outline';
-import { computed, ref } from 'vue';
+import { ref, onUnmounted } from 'vue';
 import ReusableTable from '../../components/tables/ReusableTable.vue';
 import { approveApplication, getApplications, rejectApplication } from '../../services/applicationService';
 import { getNotifications } from '../../services/notificationService';
+import { useApplicationsStore } from '../../stores/applications';
+
+const applicationsStore = useApplicationsStore();
 
 const applications = ref([]);
-const notifications = ref(getNotifications());
+const notifications = ref([]);
 const isLoading = ref(true);
 const loadError = ref('');
 
@@ -27,21 +30,57 @@ const tableActions = [
   { key: 'reject', title: 'Reject', icon: XMarkIcon, className: 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100' },
 ];
 
-const pendingApplications = computed(() => applications.value);
+// isRefreshing guards against overlapping polling requests: if a fetch
+// is still in flight when the next interval fires, this skips starting
+// a second one instead of letting requests stack up.
+let isRefreshing = false;
+let pollIntervalId = null;
 
-async function loadApplications() {
-  isLoading.value = true;
+// Loaded together since neither depends on the other — same
+// Promise.all pattern used in SuperAdminDashboard.vue. showLoadingState
+// is only true on the very first call (isLoading drives the big
+// spinner) — background polling refreshes shouldn't flash a full-page
+// loading state every 25 seconds while someone's actively reading this
+// page.
+async function loadData(showLoadingState = true) {
+  if (isRefreshing) return;
+  isRefreshing = true;
+  if (showLoadingState) isLoading.value = true;
   loadError.value = '';
   try {
-    applications.value = await getApplications();
+    const [applicationsResult, notificationsResult] = await Promise.all([
+      getApplications(),
+      getNotifications(),
+    ]);
+    applications.value = applicationsResult;
+    notifications.value = notificationsResult;
+    // Pushes the up-to-date count straight to the shared store — the
+    // sidebar reads this reactively, so the ping updates the instant
+    // this page reloads (including right after an approve/reject),
+    // instead of waiting for the sidebar's own separate poll to catch
+    // up to 25 seconds later. No extra API call needed: applicationsResult
+    // is the same data this page already fetched above.
+    applicationsStore.setPendingCount(applicationsResult.length);
   } catch (err) {
-    loadError.value = 'Failed to load applications.';
+    loadError.value = 'Failed to load data.';
   } finally {
-    isLoading.value = false;
+    if (showLoadingState) isLoading.value = false;
+    isRefreshing = false;
   }
 }
 
-loadApplications();
+loadData();
+
+// Polls every 25 seconds so a new application submitted or approved
+// elsewhere shows up here without needing a manual refresh — same
+// interval and reasoning as the sidebar badge in AppSidebar.vue.
+pollIntervalId = setInterval(() => loadData(false), 25000);
+
+onUnmounted(() => {
+  if (pollIntervalId) {
+    clearInterval(pollIntervalId);
+  }
+});
 
 function formatTimeAgo(value) {
   const date = new Date(value);
@@ -84,9 +123,19 @@ function handleApplicationAction({ action, row }) {
       } else {
         await rejectApplication(row.id);
       }
-      await loadApplications();
+      // Approving changes both lists: the applications table loses a
+      // pending row, and a new notification gets written server-side.
+      // Reloading both keeps them in sync instead of only patching
+      // the applications array locally.
+      await loadData();
     } catch (err) {
-      loadError.value = `Failed to ${label} application.`;
+      // err.message here is the backend's real reason (api.js's response
+      // interceptor unwraps it) — most importantly the 409 "Application
+      // is not pending (already processed, or does not exist)" case from
+      // a double-click or a stale row. The old generic message hid that
+      // and left no way to tell a real failure from someone else already
+      // having approved/rejected the same application first.
+      loadError.value = `Failed to ${label} application. ${err.message}`;
     }
   });
 }
@@ -106,8 +155,8 @@ function handleApplicationAction({ action, row }) {
       <div v-else-if="loadError" class="text-sm text-red-500 p-4">{{ loadError }}</div>
 
       <ReusableTable
-        v-if="pendingApplications.length"
-        :rows="pendingApplications"
+        v-if="applications.length"
+        :rows="applications"
         :columns="tableColumns"
         :actions="tableActions"
         empty-text="No pending applications at this time."

@@ -6,7 +6,7 @@ import {
   ChevronRightIcon,
   PencilSquareIcon,
 } from '@heroicons/vue/24/outline';
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 import ReusableTable from '../../components/tables/ReusableTable.vue';
 import FilterControls from '../../components/filters/FilterControls.vue';
 import SortControls from '../../components/filters/SortControls.vue';
@@ -50,7 +50,52 @@ const tableActions = [
   { key: 'edit', title: 'Edit', icon: PencilSquareIcon, className: 'border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100' },
 ];
 
-const users = ref(getUsers());
+const isLoading = ref(true);
+const loadError = ref('');
+const formError = ref('');
+const isSaving = ref(false);
+const users = ref([]);
+
+// isRefreshing guards against overlapping polling requests: if a fetch
+// is still in flight when the next interval fires, this skips starting
+// a second one instead of letting requests stack up.
+let isRefreshing = false;
+let pollIntervalId = null;
+
+// showLoadingState is only true on the very first call — background
+// polling refreshes shouldn't flash the full-page spinner every 25
+// seconds while someone's actively reading this page or has the edit
+// modal open. The edit modal's own state (formUser, selectedUser) is
+// separate from the users list, so a background refresh here never
+// interrupts or overwrites an in-progress edit.
+async function loadUsers(showLoadingState = true) {
+  if (isRefreshing) return;
+  isRefreshing = true;
+  if (showLoadingState) isLoading.value = true;
+  loadError.value = '';
+  try {
+    users.value = await getUsers();
+  } catch (err) {
+    loadError.value = 'Failed to load users. ' + err.message;
+  } finally {
+    if (showLoadingState) isLoading.value = false;
+    isRefreshing = false;
+  }
+}
+
+onMounted(() => {
+  loadUsers();
+  // Polls every 25 seconds so newly approved users show up without a
+  // manual refresh — same interval and reasoning as AppSidebar.vue and
+  // appliAndNotifs.vue.
+  pollIntervalId = setInterval(() => loadUsers(false), 25000);
+});
+
+onUnmounted(() => {
+  if (pollIntervalId) {
+    clearInterval(pollIntervalId);
+  }
+});
 
 const filteredUsers = computed(() => {
   const q = searchQuery.value.trim().toLowerCase();
@@ -58,7 +103,11 @@ const filteredUsers = computed(() => {
     const matchesQuery = !q || [user.name, user.email].some((value) => value?.toLowerCase().includes(q));
 
     const from = filterState.value.from ? new Date(filterState.value.from) : null;
-    const to = filterState.value.to ? new Date(filterState.value.to) : null;
+    // Same reasoning as logs.vue's identical filter: new Date('2026-07-14')
+    // parses to midnight on that day, so comparing with <= excluded
+    // everything approved after 00:00 on the selected "to" date — nearly
+    // every real approvedAt value. Pushed to the end of that day instead.
+    const to = filterState.value.to ? new Date(filterState.value.to).setHours(23, 59, 59, 999) : null;
     const approved = user.approvedAt ? new Date(user.approvedAt) : null;
     const matchesDate = (!from || !approved || approved >= from) && (!to || !approved || approved <= to);
 
@@ -90,6 +139,18 @@ const paginatedUsers = computed(() => {
   const start = (currentPage.value - 1) * itemsPerPage.value;
   return sortedUsers.value.slice(start, start + itemsPerPage.value);
 });
+
+// Display-only copy of paginatedUsers with approvedAt formatted as
+// 24-hour time. Kept separate from paginatedUsers itself, since
+// filteredUsers/sortedUsers above both parse approvedAt with new Date()
+// — filtering and "Newest/Oldest" sorting need the raw ISO value, not
+// the formatted display string.
+const displayUsers = computed(() =>
+  paginatedUsers.value.map((user) => ({
+    ...user,
+    approvedAt: formatTimestamp(user.approvedAt),
+  }))
+);
 
 watch([searchQuery, filterState, sortBy, itemsPerPage], () => {
   currentPage.value = 1;
@@ -135,10 +196,11 @@ function openConfirm(message, action) {
   confirmModalOpen.value = true;
 }
 
-function handleConfirmYes() {
-  if (confirmAction.value) confirmAction.value();
+async function handleConfirmYes() {
+  const action = confirmAction.value;
   confirmModalOpen.value = false;
   confirmAction.value = null;
+  if (action) await action();
 }
 
 function handleConfirmNo() {
@@ -150,6 +212,7 @@ function openEditModal(user) {
   selectedUser.value = user;
   formUser.value = { id: user.id, name: user.name, role: user.role, email: user.email };
   hasUnsavedChanges.value = false;
+  formError.value = '';
   isModalOpen.value = true;
 }
 
@@ -185,29 +248,50 @@ function trackFormChanges() {
 }
 
 function saveUser() {
+  formError.value = '';
   const name = formUser.value.name.trim();
   const email = formUser.value.email.trim();
 
   if (!name || !email) {
-    window.alert('Name and Email are required.');
+    formError.value = 'Name and Email are required.';
     return;
   }
 
-  openConfirm('Save changes to this user?', () => {
-    updateUser(selectedUser.value.id, {
-      name,
-      role: formUser.value.role,
-      email,
-    });
-    users.value = getUsers();
-    closeModal();
+  openConfirm('Save changes to this user?', async () => {
+    isSaving.value = true;
+    try {
+      const updated = await updateUser(selectedUser.value.id, {
+        name,
+        role: formUser.value.role,
+        email,
+      });
+      const idx = users.value.findIndex((u) => u.id === updated.id);
+      if (idx !== -1) users.value[idx] = updated;
+      closeModal();
+    } catch (err) {
+      formError.value = 'Failed to save user. ' + err.message;
+    } finally {
+      isSaving.value = false;
+    }
   });
 }
 
+// Changing a user's status here updates both sides: Firebase's
+// `disabled` flag (which actually governs login access) and the
+// Supabase `status` column (which drives what this table displays).
+// See PATCH /api/users/:id in api/index.js — Firebase is synced first,
+// before the Supabase write, so a partial failure always leaves the
+// safer of the two possible half-done states: access still correctly
+// enforced even if the table display goes stale.
 function updateStatus(user, value) {
-  openConfirm(`Change ${user.name}'s status to ${value}?`, () => {
-    updateUser(user.id, { status: value });
-    users.value = getUsers();
+  openConfirm(`Change ${user.name}'s status to ${value}?`, async () => {
+    try {
+      const updated = await updateUser(user.id, { status: value });
+      const idx = users.value.findIndex((u) => u.id === updated.id);
+      if (idx !== -1) users.value[idx] = updated;
+    } catch (err) {
+      loadError.value = 'Failed to update status. ' + err.message;
+    }
   });
 }
 
@@ -228,10 +312,20 @@ function handleCellAction({ column, row, value }) {
     updateStatus(row, value);
   }
 }
+
+function formatTimestamp(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
 </script>
 
 <template>
   <div class="flex flex-col gap-4">
+    <div v-if="loadError" class="bg-red-50 border border-red-200 text-red-700 text-xs sm:text-sm px-4 py-3 rounded-xl">
+      {{ loadError }}
+    </div>
     <div class="flex flex-col gap-4 md:flex-row">
       <div class="flex flex-1 items-center gap-1 rounded-full bg-gray-100 p-1 ring-1 ring-gray-300" :class="isFocused ? 'ring-2 ring-[#263e30]' : 'hover:ring-2 hover:ring-gray-500'">
         <button class="flex h-8 w-8 items-center justify-center rounded-full hover:bg-gray-300">
@@ -272,7 +366,7 @@ function handleCellAction({ column, row, value }) {
     </div>
 
     <ReusableTable
-      :rows="paginatedUsers"
+      :rows="displayUsers"
       :columns="tableColumns"
       :actions="tableActions"
       empty-text="No users found"
@@ -324,12 +418,14 @@ function handleCellAction({ column, row, value }) {
             </div>
           </div>
 
+          <p v-if="formError" class="text-sm text-red-600">{{ formError }}</p>
+
           <div class="flex justify-end gap-2 pt-2">
             <button type="button" class="rounded-md bg-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-300" @click="confirmDiscard">
               Cancel
             </button>
-            <button type="submit" class="rounded-md bg-[#263e30] px-4 py-2 text-sm font-medium text-white transition hover:opacity-80">
-              Save
+            <button type="submit" :disabled="isSaving" class="rounded-md bg-[#263e30] px-4 py-2 text-sm font-medium text-white transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60">
+              {{ isSaving ? 'Saving...' : 'Save' }}
             </button>
           </div>
         </form>

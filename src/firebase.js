@@ -1,12 +1,14 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
 import { getAuth } from "firebase/auth";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
 
 // Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional.
+// This apiKey is safe to keep here: Firebase web config is meant to be
+// public — it identifies the project, it doesn't grant access on its
+// own. Real access control happens through the custom claims the
+// backend sets (see authMiddleware.cjs's requireRole()), not through
+// keeping this object secret.
 const firebaseConfig = {
   apiKey: "AIzaSyC-FiX8hIOLXbhDRo8w905-rZxoz9lLikc",
   authDomain: "rni-database.firebaseapp.com",
@@ -19,7 +21,6 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
 const auth = getAuth(app);
 
-export { app, analytics, auth };
+export { app, auth };

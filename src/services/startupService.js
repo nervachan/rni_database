@@ -37,11 +37,18 @@ function toDbStartupPayload(payload) {
   return dbPayload
 }
 
-// Get the list of cohorts with the count of startups in each cohort.
-// err.message is already a clean, specific reason by the time it gets here
-// (api.js's response interceptor unwraps the backend's real error text) —
-// we just add which operation failed on top of that, not a status code.
-export async function getCohorts() {
+// Fetches cohorts and startups together, in ONE round trip, and returns
+// both already converted to client shape. This exists because the old
+// getCohorts() below fetched BOTH /cohorts and /startups itself just to
+// compute a per-cohort startup count, then threw the /startups data
+// away — and startupManagement.vue's loadData() called getStartups()
+// again right afterward, making a SECOND request to the same table
+// only after the first had already finished. Two round trips to
+// /startups, one blocked behind the other instead of running in
+// parallel, was the actual cause of Startup Management's slow load.
+// This fetches both tables exactly once and hands back everything that
+// page needs from a single call.
+export async function getStartupBoardData() {
   let cohorts, startups
   try {
     const [cohortsRes, startupsRes] = await Promise.all([
@@ -51,7 +58,7 @@ export async function getCohorts() {
     cohorts = cohortsRes.data.cohorts
     startups = startupsRes.data.startups
   } catch (err) {
-    throw new Error(`Failed to load cohorts: ${err.message}`)
+    throw new Error(`Failed to load startup data: ${err.message}`)
   }
 
   const startupCountByCohortId = new Map()
@@ -59,7 +66,19 @@ export async function getCohorts() {
     startupCountByCohortId.set(s.cohort_id, (startupCountByCohortId.get(s.cohort_id) ?? 0) + 1)
   })
 
-  return cohorts.map(row => toClientCohort(row, startupCountByCohortId))
+  return {
+    cohorts: cohorts.map(row => toClientCohort(row, startupCountByCohortId)),
+    startups: startups.map(toClientStartup),
+  }
+}
+
+// Get the list of cohorts with the count of startups in each cohort.
+// Still used by inttoDashboard.vue, which only needs the cohort list
+// (counts already baked in) — not the raw startups array. Delegates to
+// getStartupBoardData() above instead of duplicating its own fetch.
+export async function getCohorts() {
+  const { cohorts } = await getStartupBoardData()
+  return cohorts
 }
 
 export async function getStartups() {

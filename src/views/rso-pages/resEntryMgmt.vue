@@ -291,6 +291,19 @@ function trackFormChanges() {
   hasUnsavedChanges.value = original ? JSON.stringify(current) !== JSON.stringify(original) : Object.values(current).some((value) => value);
 }
 
+// Case-insensitive, whitespace-trimmed duplicate title check. Without
+// the .toLowerCase() here, "Case Study" and "case study" (or "CASE
+// STUDY") would be treated as different titles and both would be
+// allowed through — same duplicate-check pattern already used for IP
+// records (ipManagement.vue) and startups (startupManagement.vue),
+// research entries just never had one.
+// excludeId lets an edit compare against every OTHER entry without
+// flagging itself as a conflict with its own unchanged title.
+function recordTitleAlreadyExists(title, excludeId = null) {
+  const normalized = title.trim().toLowerCase();
+  return researchEntries.value.some((entry) => entry.id !== excludeId && entry.title.trim().toLowerCase() === normalized);
+}
+
 function saveEntry() {
   modalError.value = '';
 
@@ -299,6 +312,11 @@ function saveEntry() {
 
   if (!title || !authors) {
     modalError.value = 'Title and Authors are required.';
+    return;
+  }
+
+  if (recordTitleAlreadyExists(title, selectedEntry.value?.id)) {
+    modalError.value = 'A research entry with this title already exists.';
     return;
   }
 
@@ -497,7 +515,7 @@ function handleTableAction({ action, row }) {
           <div><span class="font-semibold">Start Date:</span> {{ selectedEntry.startDate }}</div>
           <div><span class="font-semibold">End Date:</span> {{ selectedEntry.endDate }}</div>
           <div><span class="font-semibold">ISBN:</span> {{ selectedEntry.isbn || 'N/A' }}</div>
-          <div><span class="font-semibold">Scopus Link:</span> <span v-if="selectedEntry.scopusLink" class="text-blue-600 underline">Link</span><span v-else>N/A</span></div>
+          <div><span class="font-semibold">Scopus Link:</span> <a v-if="selectedEntry.scopusLink" :href="selectedEntry.scopusLink" target="_blank" rel="noopener noreferrer" class="text-blue-600 underline hover:text-blue-800">Link</a><span v-else>N/A</span></div>
           <div><span class="font-semibold">Abstract / Summary:</span> {{ selectedEntry.abstract || 'N/A' }}</div>
         </div>
 

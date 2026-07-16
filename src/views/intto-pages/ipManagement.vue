@@ -25,12 +25,24 @@ const actionError = ref('')
 // producing duplicate rows. This was here before and got lost in a merge.
 const isSaving = ref(false)
 const isDeleting = ref(false)
+// Same double-submit guard as isSaving/isDeleting above, just for the
+// three write actions that were missing one: the bulk status Apply
+// button, its Undo, and CSV import. All three run a for-loop of
+// sequential API calls — without a flag disabling the button, a fast
+// double-click starts a second overlapping loop over the same records.
+const isBulkUpdating = ref(false)
+const isUndoingBulkChange = ref(false)
+const isImporting = ref(false)
 
 // --- Toolbar state ---
 const search       = ref('')
 const filterStatus = ref('')
 const filterClass  = ref('')
-const sortKey      = ref('')
+// Defaults to 'dateDesc' (Newest – Oldest) instead of '' (unsorted).
+// Previously nothing matched any of the sort branches further down
+// until a person manually picked an option, so records displayed in
+// raw database order on first load.
+const sortKey      = ref('dateDesc')
 const itemsPerPage = ref(10)
 const currentPage  = ref(1)
 const exportFormat = ref('csv')
@@ -167,48 +179,63 @@ function clearSelection() {
 
 async function bulkUpdateStatus() {
   if (!selectedIds.value.length) return
+  // Blocks a second call from starting while this one's for-loop is
+  // still running — same reasoning as isSaving in submitForm() above.
+  if (isBulkUpdating.value) return
+  isBulkUpdating.value = true
   actionError.value = ''
 
   const previousStatus = {}
   const succeededIds = []
 
-  for (const id of selectedIds.value) {
-    const idx = rows.value.findIndex(r => r.id === id)
-    if (idx === -1) continue
-    const prior = rows.value[idx].status
-    try {
-      await updateIpRecord(id, { status: bulkStatus.value })
-      rows.value[idx] = { ...rows.value[idx], status: bulkStatus.value }
-      previousStatus[id] = prior
-      succeededIds.push(id)
-    } catch (err) {
-      actionError.value = `Failed to update status for record ${id}. ${err.message}`
+  try {
+    for (const id of selectedIds.value) {
+      const idx = rows.value.findIndex(r => r.id === id)
+      if (idx === -1) continue
+      const prior = rows.value[idx].status
+      try {
+        await updateIpRecord(id, { status: bulkStatus.value })
+        rows.value[idx] = { ...rows.value[idx], status: bulkStatus.value }
+        previousStatus[id] = prior
+        succeededIds.push(id)
+      } catch (err) {
+        actionError.value = `Failed to update status for record ${id}. ${err.message}`
+      }
     }
-  }
 
-  lastBulkStatusChange.value = succeededIds.length
-    ? { ids: succeededIds, previousStatus, appliedStatus: bulkStatus.value }
-    : null
+    lastBulkStatusChange.value = succeededIds.length
+      ? { ids: succeededIds, previousStatus, appliedStatus: bulkStatus.value }
+      : null
+  } finally {
+    isBulkUpdating.value = false
+  }
 }
 
 async function undoBulkStatusChange() {
   if (!lastBulkStatusChange.value) return
+  // Same reasoning as isBulkUpdating in bulkUpdateStatus() above.
+  if (isUndoingBulkChange.value) return
+  isUndoingBulkChange.value = true
   actionError.value = ''
 
-  for (const id of lastBulkStatusChange.value.ids) {
-    const prev = lastBulkStatusChange.value.previousStatus[id]
-    if (prev === undefined) continue
-    const idx = rows.value.findIndex(r => r.id === id)
-    if (idx === -1) continue
-    try {
-      await updateIpRecord(id, { status: prev })
-      rows.value[idx] = { ...rows.value[idx], status: prev }
-    } catch (err) {
-      actionError.value = `Failed to undo status for record ${id}. ${err.message}`
+  try {
+    for (const id of lastBulkStatusChange.value.ids) {
+      const prev = lastBulkStatusChange.value.previousStatus[id]
+      if (prev === undefined) continue
+      const idx = rows.value.findIndex(r => r.id === id)
+      if (idx === -1) continue
+      try {
+        await updateIpRecord(id, { status: prev })
+        rows.value[idx] = { ...rows.value[idx], status: prev }
+      } catch (err) {
+        actionError.value = `Failed to undo status for record ${id}. ${err.message}`
+      }
     }
-  }
 
-  lastBulkStatusChange.value = null
+    lastBulkStatusChange.value = null
+  } finally {
+    isUndoingBulkChange.value = false
+  }
 }
 
 function bulkDelete() {
@@ -263,26 +290,87 @@ function exportRows() {
 }
 
 function parseCsv(text) {
-  const lines = text.trim().split(/\r?\n/).filter(line => line.trim())
-  if (!lines.length) return []
-  const headers = lines[0].split(',').map(h => h.trim().toLowerCase())
-  return lines.slice(1).map(line => {
-    const values = line.split(',').map(v => v.trim())
-    const record = {}
-    headers.forEach((key, idx) => {
-      record[key] = values[idx] ?? ''
+  // Character-level parser instead of naive split(',') / split(/\r?\n/).
+  // exportUtils.js's buildCsvContent() quotes EVERY field and doubles any
+  // internal quote (e.g. multiple inventors becomes "Smith, J., Doe, A."
+  // with real quote marks around it). A plain comma/newline split has no
+  // concept of "this comma is inside quotes" — it was cutting a quoted
+  // field into extra columns, shifting every value after it one column
+  // to the right. This walks the text one character at a time and tracks
+  // whether it's currently inside a quoted field, so commas and newlines
+  // inside quotes are read as literal text instead of separators.
+  const rows = []
+  let row = []
+  let field = ''
+  let insideQuotes = false
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i]
+    const next = text[i + 1]
+
+    if (insideQuotes) {
+      if (char === '"' && next === '"') {
+        field += '"'
+        i++ // skip the second quote — "" inside quotes means one literal quote
+      } else if (char === '"') {
+        insideQuotes = false
+      } else {
+        field += char
+      }
+    } else if (char === '"') {
+      insideQuotes = true
+    } else if (char === ',') {
+      row.push(field.trim())
+      field = ''
+    } else if (char === '\r') {
+      // Ignore — the \n right after it (or a lone \n) is what actually
+      // ends the row, handled below.
+    } else if (char === '\n') {
+      row.push(field.trim())
+      rows.push(row)
+      row = []
+      field = ''
+    } else {
+      field += char
+    }
+  }
+
+  // The final field/row has no trailing newline to trigger the push
+  // above — flush whatever's left, unless the file already ended
+  // cleanly on a blank line.
+  if (field.length || row.length) {
+    row.push(field.trim())
+    rows.push(row)
+  }
+
+  if (!rows.length) return []
+  const headers = rows[0].map(h => h.toLowerCase())
+  return rows.slice(1)
+    .filter(row => row.some(value => value !== '')) // skip blank trailing lines
+    .map(row => {
+      const record = {}
+      headers.forEach((key, idx) => {
+        record[key] = row[idx] ?? ''
+      })
+      return record
     })
-    return record
-  })
 }
 
 async function handleImportFile(event) {
   const file = event.target.files?.[0]
   importError.value = ''
   if (!file) return
+  // Same reasoning as isBulkUpdating above — this guards the for-loop
+  // further down that creates one record per CSV row. The file input
+  // itself has no visible "disabled" state to add, so this just makes
+  // a second call started before the first one finishes into a no-op
+  // instead of starting an overlapping import loop.
+  if (isImporting.value) return
+  isImporting.value = true
   if (!file.name.toLowerCase().endsWith('.csv')) {
     importError.value = 'Please import a .csv file.'
     event.target.value = ''
+    isImporting.value = false
     return
   }
 
@@ -295,6 +383,7 @@ async function handleImportFile(event) {
     if (!rowsToImport.length) {
       importError.value = 'CSV file is empty or invalid.'
       event.target.value = ''
+      isImporting.value = false
       return
     }
 
@@ -303,6 +392,7 @@ async function handleImportFile(event) {
     if (invalidRow) {
       importError.value = 'CSV must include title, inventors, filingDate, status, and classification for every row.'
       event.target.value = ''
+      isImporting.value = false
       return
     }
 
@@ -322,6 +412,8 @@ async function handleImportFile(event) {
       }
     } catch (err) {
       importError.value = `Imported ${importedCount} of ${rowsToImport.length} rows, then failed: ${err.message}`
+    } finally {
+      isImporting.value = false
     }
 
     event.target.value = ''
@@ -459,13 +551,18 @@ function statusClass(status) {
         <option value="">Sort by...</option>
         <option value="title">Title A–Z</option>
         <option value="titleDesc">Title Z–A</option>
-        <option value="date">Filing date ↑</option>
-        <option value="dateDesc">Filing date ↓</option>
+        <!-- "dateDesc" sorts newest filing date first (see displayedRows
+             below) — listed first here since it's now the default sort,
+             matching the same Newest-first-in-the-list convention
+             already used in userMgmt.vue's and resEntryMgmt.vue's own
+             sort dropdowns. -->
+        <option value="dateDesc">Newest – Oldest</option>
+        <option value="date">Oldest – Newest</option>
       </select>
 
       <div class="flex items-center gap-2 ml-auto">
         <label v-if="!isReadOnly" class="flex items-center gap-2 rounded-md bg-gray-100 border border-white/10 px-4 py-2 text-xs font-semibold text-black shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] cursor-pointer hover:border-[#9ecfa8]/40">
-          <input type="file" accept=".csv" @change="handleImportFile" class="hidden" />
+          <input type="file" accept=".csv" :disabled="isImporting" @change="handleImportFile" class="hidden" />
             Import CSV
           </label>
           <button
@@ -488,8 +585,8 @@ function statusClass(status) {
           <select v-model="bulkStatus" class="rounded-2xl border border-gray-200 bg-white px-4 py-2 text-sm text-black outline-none">
             <option v-for="status in statusOptions" :key="status" :value="status">{{ status }}</option>
           </select>
-          <button @click="bulkUpdateStatus" class="rounded-2xl bg-[#263e30] px-4 py-2 text-xs font-semibold text-white hover:bg-[#4d7c5e] transition">Apply status</button>
-          <button @click="undoBulkStatusChange" :disabled="!lastBulkStatusChange" class="rounded-2xl bg-[#8b5cf6] px-4 py-2 text-xs font-semibold text-white hover:bg-[#7c3aed] transition disabled:cursor-not-allowed disabled:opacity-50">Undo status</button>
+          <button @click="bulkUpdateStatus" :disabled="isBulkUpdating" class="rounded-2xl bg-[#263e30] px-4 py-2 text-xs font-semibold text-white hover:bg-[#4d7c5e] transition disabled:cursor-not-allowed disabled:opacity-60">{{ isBulkUpdating ? 'Applying...' : 'Apply status' }}</button>
+          <button @click="undoBulkStatusChange" :disabled="!lastBulkStatusChange || isUndoingBulkChange" class="rounded-2xl bg-[#8b5cf6] px-4 py-2 text-xs font-semibold text-white hover:bg-[#7c3aed] transition disabled:cursor-not-allowed disabled:opacity-50">{{ isUndoingBulkChange ? 'Undoing...' : 'Undo status' }}</button>
         </div>
         <button v-if="!isReadOnly" @click="bulkDelete" class="rounded-2xl bg-[#e05c5c] px-4 py-2 text-xs font-semibold text-white hover:bg-[#c44343] transition">Delete selected</button>
         <button @click="exportRows" class="rounded-2xl bg-[#3b9edd] px-4 py-2 text-xs font-semibold text-white hover:bg-[#2f8cd2] transition">Export selected</button>

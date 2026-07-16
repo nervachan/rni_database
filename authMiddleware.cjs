@@ -13,6 +13,8 @@ async function verifyToken(req, res, next) {
     req.user = {
       uid: decodedToken.uid,
       role: decodedToken.role || null,
+      email: decodedToken.email || null,
+      name: decodedToken.name || null,
     };
     next();
   } catch (error) {

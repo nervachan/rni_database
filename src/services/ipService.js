@@ -2,7 +2,7 @@
 import api from './api'
 
 // This file is a service layer for the IP management feature.
-//  It handles fetching, creating, updating, and deleting IP records from the backend API.
+// It handles fetching, creating, updating, and deleting IP records from the backend API.
 // It also manages the mapping between classification IDs and names, which are stored in a separate classifications table in the database.
 let classificationsCache = null
 
@@ -14,19 +14,33 @@ let classificationsCache = null
 async function getClassificationsMap() {
   if (classificationsCache) return classificationsCache
 
-  let classifications
-  try {
-    const { data } = await api.get('/classifications')
-    classifications = data.classifications
-  } catch (err) {
-    const status = err.response?.status ?? 'network error'
-    throw new Error(`Failed to load classifications (${status})`)
-  }
+  // Cache the in-flight PROMISE itself, not just the value it resolves
+  // to. The old version only cached the resolved result — while that
+  // first request is still in flight, classificationsCache is still
+  // null, so any concurrent caller (e.g. inttoDashboard.vue and
+  // ipManagement.vue both mounting around the same time) sees null too
+  // and fires its own separate /classifications request. Storing the
+  // promise here means every caller that arrives before it settles
+  // awaits the SAME request instead of starting a new one.
+  classificationsCache = (async () => {
+    let classifications
+    try {
+      const { data } = await api.get('/classifications')
+      classifications = data.classifications
+    } catch (err) {
+      // Clear the cache on failure so the NEXT call gets a fresh
+      // attempt, instead of every future call being stuck awaiting
+      // this same rejected promise forever.
+      classificationsCache = null
+      throw new Error(`Failed to load classifications: ${err.message}`)
+    }
 
-  classificationsCache = {
-    byId:   new Map(classifications.map(c => [c.id, c.classification_name])),
-    byName: new Map(classifications.map(c => [c.classification_name, c.id])),
-  }
+    return {
+      byId:   new Map(classifications.map(c => [c.id, c.classification_name])),
+      byName: new Map(classifications.map(c => [c.classification_name, c.id])),
+    }
+  })()
+
   return classificationsCache
 }
 
@@ -80,8 +94,7 @@ export async function getIpRecords() {
     const { data } = await api.get('/ips')
     ips = data.ips
   } catch (err) {
-    const status = err.response?.status ?? 'network error'
-    throw new Error(`Failed to load IP records (${status})`)
+    throw new Error(`Failed to load IP records: ${err.message}`)
   }
 
   return ips.map(row => toClientRecord(row, byId))
@@ -99,8 +112,7 @@ export async function createIpRecord(payload) {
     const { data } = await api.post('/ips', toDbPayload(payload, byName))
     ip = data.ip
   } catch (err) {
-    const status = err.response?.status ?? 'network error'
-    throw new Error(`Failed to create IP record (${status})`)
+    throw new Error(`Failed to create IP record: ${err.message}`)
   }
 
   return toClientRecord(ip, byId)
@@ -116,8 +128,7 @@ export async function updateIpRecord(id, payload) {
     const { data } = await api.patch(`/ips/${id}`, toDbPayload(payload, byName))
     ip = data.ip
   } catch (err) {
-    const status = err.response?.status ?? 'network error'
-    throw new Error(`Failed to update IP record (${status})`)
+    throw new Error(`Failed to update IP record: ${err.message}`)
   }
 
   return toClientRecord(ip, byId)
@@ -129,18 +140,7 @@ export async function deleteIpRecord(id) {
   try {
     await api.delete(`/ips/${id}`)
   } catch (err) {
-    const status = err.response?.status ?? 'network error'
-    throw new Error(`Failed to delete IP record (${status})`)
+    throw new Error(`Failed to delete IP record: ${err.message}`)
   }
   return true
 }
-
-// What this file does, in plain terms:
-
-// getClassificationsMap() fetches the classifications table once and builds two lookup tables in memory: one to go from classification_id (number) → name ('Patent'), and one the reverse direction. It's cached in classificationsCache so it only fetches once per page load, not on every single record read.
-// getIpRecords() fetches /ips from your Express backend, then runs each row through toClientRecord() to convert it into the exact shape ipManagement.vue already expects — same field names (filingDate, classification) it was using with the old mock data, so nothing downstream breaks yet from this file alone.
-// createIpRecord()/updateIpRecord() do the reverse: take what the component sends, convert it back to the DB's snake_case shape and swap the classification name back to an id, then POST/PATCH to Express.
-// deleteIpRecord() is unchanged in spirit, just now an actual network call instead of an array filter.
-// All requests now go through the shared `api` axios instance from api.js, which attaches the Firebase ID token via its request interceptor — this is the fix for the 401s that raw fetch() calls were causing.
-
-// One thing this file does NOT fix yet, on purpose: status now comes back as a plain string ('Granted') instead of the old ['Granted'] array — that's correct per the DB schema, but ipManagement.vue still expects an array in several places. That mismatch is 4c, next. Nothing will visibly work correctly until 4c is also done — this file alone isn't meant to be tested in isolation.

@@ -15,10 +15,8 @@
  */
 
 import { ref, computed, watch, onMounted } from 'vue'
-import { getCohorts, getStartups, createCohort, createStartup, updateStartup, deleteStartup } from '../../services/startupService.js'
-import { useAuthStore } from '../../stores/auth.js'
-const authStore = useAuthStore()
-const isReadOnly = computed(() => authStore.isReadOnly)
+import { ChevronDownIcon } from '@heroicons/vue/24/outline'
+import { getStartupBoardData, createCohort, createStartup, updateStartup, deleteStartup } from '../../services/startupService.js'
 
 // --- Navigation / selection state ---
 const activeCohortId  = ref(null)   // id of the cohort currently shown in column 2
@@ -63,8 +61,12 @@ const localStartups = ref([])   // all startups, across all cohorts (filtered pe
 async function loadData() {
   loadError.value = ''
   try {
-    localCohorts.value   = await getCohorts()
-    localStartups.value  = await getStartups()
+    // One call, one round trip to each of /cohorts and /startups run in
+    // parallel — see getStartupBoardData() in startupService.js for why
+    // this replaced the old getCohorts() + getStartups() combo.
+    const { cohorts, startups } = await getStartupBoardData()
+    localCohorts.value   = cohorts
+    localStartups.value  = startups
     activeCohortId.value = localCohorts.value[0]?.id ?? null
   } catch (err) {
     loadError.value = 'Failed to load startup data. ' + err.message
@@ -544,7 +546,6 @@ isSavingProject.value = true
           <div class="flex items-center justify-between rounded-xl bg-[#263e30] px-4 py-4 gap-2">
             <span class="text-sm font-semibold uppercase tracking-[0.24em] text-white">All Cohorts</span>
             <button
-              v-if="!isReadOnly"
               @click="openCohortModal"
               class="rounded-sm bg-[#4d7c5e] px-3 py-1.5 text-xs font-semibold text-white hover:bg-white hover:text-[#263e30] transition shrink-0"
             >+ Cohort</button>
@@ -576,7 +577,6 @@ isSavingProject.value = true
           <div class="flex items-center justify-between rounded-xl bg-[#263e30] px-4 py-4 gap-2"> <!-- Projects Header -->
             <span class="text-sm font-semibold uppercase tracking-[0.24em] text-white">Projects</span>
             <button
-              v-if="!isReadOnly"
               @click="openAddProjectModal"
               class="rounded-sm bg-[#4d7c5e] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#4d7c5e] transition shrink-0"
             >+ Project</button>
@@ -688,7 +688,7 @@ isSavingProject.value = true
                   <p class="text-xs text-slate-600 truncate">{{ activeProject.genre }} · {{ cohortName(activeProject.cohortId) }}</p>
                 </div>
               </div>
-              <div v-if="!isReadOnly" class="flex gap-2">
+              <div class="flex gap-2">
                 <button
                   @click="activeProjectId = null"
                   class="rounded-2xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition"
@@ -715,17 +715,29 @@ isSavingProject.value = true
 
           <template v-else> <!-- No Project Selected -->
             <div class="grid gap-4 grid-cols-1 sm:grid-cols-3 p-5">
-              <div class="rounded-[2rem] bg-gray-100 p-4 text-black ">
+              <!-- flex flex-col + h-full on each card, mt-auto on the
+                   number: grid cells already stretch to match the
+                   tallest card in the row (CSS Grid's default), but the
+                   number was pinned a fixed distance below its OWN
+                   label with mt-4 — so if "In Selected Cohort" ever
+                   wraps to two lines at a narrower width while the
+                   other two stay on one line, that card's number sits
+                   a full line lower than the other two even though all
+                   three cards are the same height. mt-auto pushes the
+                   number to the bottom of its card instead, so all
+                   three line up regardless of how many lines a label
+                   takes. -->
+              <div class="flex h-full flex-col rounded-[2rem] bg-gray-100 p-4 text-black ">
                 <p class="text-xs uppercase tracking-widest text-slate-600">Total Startups</p>
-                <p class="mt-4 text-3xl font-semibold">{{ localStartups.length }}</p>
+                <p class="mt-auto text-3xl font-semibold">{{ localStartups.length }}</p>
               </div>
-              <div class="rounded-[2rem] bg-gray-100 p-4 text-black">
+              <div class="flex h-full flex-col rounded-[2rem] bg-gray-100 p-4 text-black">
                 <p class="text-xs uppercase tracking-widest text-slate-400">Cohorts</p>
-                <p class="mt-4 text-3xl font-semibold">{{ localCohorts.length }}</p>
+                <p class="mt-auto text-3xl font-semibold">{{ localCohorts.length }}</p>
               </div>
-              <div class="rounded-[2rem] bg-gray-100 p-4 text-black">
+              <div class="flex h-full flex-col rounded-[2rem] bg-gray-100 p-4 text-black">
                 <p class="text-xs uppercase tracking-widest text-slate-400">In Selected Cohort</p>
-                <p class="mt-4 text-3xl font-semibold">{{ activeCohortCount }}</p>
+                <p class="mt-auto text-3xl font-semibold">{{ activeCohortCount }}</p>
               </div>
             </div>
             <div class="mt-4 mx-5 mb-5 rounded-[2rem] bg-gray-100 p-5">
@@ -735,7 +747,7 @@ isSavingProject.value = true
                   v-for="s in recentStartups"
                   :key="s.id"
                   @click="selectRecentStartup(s)"
-                  class="min-w-0 cursor-pointer border-b border-slate-200 pb-3 transition last:border-b-0 last:pb-0 hover:text-[#263e30] hover:*:bg-[#c3d7c8] rounded-[2rem] px-4 py-3 "
+                  class="min-w-0 cursor-pointer border-b border-slate-200 pb-3 transition last:border-b-0 last:pb-0 hover:text-[#263e30] hover:*:bg-[#c3d7c8]"
                 >
                   <p class="truncate font-semibold text-black">{{ s.name }}</p>
                   <p class="truncate text-slate-600">{{ s.shortDescription }}</p>
@@ -823,10 +835,17 @@ isSavingProject.value = true
           <input
             v-model="newProject.genre"
             placeholder="Genre (e.g. HealthTech)"
-            class="w-full rounded-2xl border border-gray-200 bg-gray-100 px-4 py-3 text-sm text-black outline-none focus:border-[#263e30]"
+            class="w-full rounded-2xl border border-gray-200 bg-gray-100 py-3 pl-4 pr-10 text-sm text-black outline-none focus:border-[#263e30]"
             @focus="showAddGenreSuggestions = true"
             @blur="showAddGenreSuggestions = false"
           />
+          <!-- This is a free-text input with a custom suggestion list
+               below it (matchingGenres()), not a native <select> — so
+               without this icon there's nothing telling a person that
+               typing here shows existing genre options. pointer-events-none
+               so the icon never blocks clicking/focusing the input
+               underneath it. -->
+          <ChevronDownIcon class="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <ul
             v-if="showAddGenreSuggestions && matchingGenres(newProject.genre).length"
             class="absolute z-10 mt-1 w-full max-h-40 overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-lg"
@@ -898,10 +917,12 @@ isSavingProject.value = true
           <input
             v-model="editForm.genre"
             placeholder="Genre"
-            class="w-full rounded-2xl border border-gray-200 bg-gray-100 px-4 py-3 text-sm text-black outline-none focus:border-[#263e30]"
+            class="w-full rounded-2xl border border-gray-200 bg-gray-100 py-3 pl-4 pr-10 text-sm text-black outline-none focus:border-[#263e30]"
             @focus="showEditGenreSuggestions = true"
             @blur="showEditGenreSuggestions = false"
           />
+          <!-- Same reasoning as the Add Project genre input above. -->
+          <ChevronDownIcon class="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <ul
             v-if="showEditGenreSuggestions && matchingGenres(editForm.genre).length"
             class="absolute z-10 mt-1 w-full max-h-40 overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-lg"
