@@ -22,6 +22,7 @@ import PageNumbers from '../../components/tables/PageNumbers.vue'
 // --- Navigation / selection state ---
 const activeCohortId  = ref(null)   // id of the cohort currently shown in column 2
 const loadError       = ref('')     // set if the initial loadData() fetch fails; rendered as a banner
+const isLoading       = ref(true)   // drives the top spinner banner + animate-pulse on all 3 columns while the initial fetch is in flight
 const activeProjectId = ref(null)   // id of the startup currently shown in column 3; null = show cohort-wide stats instead
 const projectSearch   = ref('')     // free-text filter on project name (column 2)
 const genreSearch     = ref('')     // genre filter on project list; '' or 'All' = no filter
@@ -71,6 +72,8 @@ async function loadData() {
     activeCohortId.value = localCohorts.value[0]?.id ?? null
   } catch (err) {
     loadError.value = 'Failed to load startup data. ' + err.message
+  } finally {
+    isLoading.value = false
   }
 }
 
@@ -527,6 +530,19 @@ isSavingProject.value = true
   <div class="h-screen bg-gray-100 text-white p-4 sm:p-6">
     <div class="w-full space-y-6">
 
+      <!-- fixed inset-0 + bg-black/50 matches the delete-confirmation
+           modal pattern already used elsewhere in this app — centers a
+           loading card over a dimmed backdrop instead of a confirm dialog. -->
+      <div v-if="isLoading" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div class="flex flex-col items-center gap-3 rounded-2xl bg-white px-8 py-6 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]">
+          <svg class="h-8 w-8 animate-spin text-[#263e30]" viewBox="0 0 24 24" fill="none">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+          <span class="text-sm font-medium text-black">Loading startup data…</span>
+        </div>
+      </div>
+
       <div v-if="loadError" class="bg-red-50 border border-red-200 text-red-700 text-xs sm:text-sm px-4 py-3 rounded-xl">
         {{ loadError }}
       </div>
@@ -543,7 +559,7 @@ isSavingProject.value = true
       <div class="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-[280px_1fr_1fr] lg:grid-cols-[280px_1fr] items-start">
 
         <!-- Column 1: Cohorts -->
-        <section class="rounded-xl bg-white p-5 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] self-start min-w-0">
+        <section class="rounded-xl bg-white p-5 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] self-start min-w-0" :class="{ 'animate-pulse': isLoading }">
           <div class="flex items-center justify-between rounded-xl bg-[#263e30] px-4 py-4 gap-2">
             <span class="text-sm font-semibold uppercase tracking-[0.24em] text-white">All Cohorts</span>
             <button
@@ -573,7 +589,7 @@ isSavingProject.value = true
         </section>
 
         <!-- Column 2: Projects -->
-        <section class="rounded-xl bg-white p-5 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] self-start min-w-0">
+        <section class="rounded-xl bg-white p-5 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] self-start min-w-0" :class="{ 'animate-pulse': isLoading }">
 
           <div class="flex items-center justify-between rounded-xl bg-[#263e30] px-4 py-4 gap-2"> <!-- Projects Header -->
             <span class="text-sm font-semibold uppercase tracking-[0.24em] text-white">Projects</span>
@@ -666,7 +682,7 @@ isSavingProject.value = true
         </section>
 
         <!-- Column 3: Detail -->
-        <section class="rounded-xl bg-white shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] md:h-[70vh] overflow-hidden min-w-0"> <!-- Detail Section -->
+        <section class="rounded-xl bg-white shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] md:h-[70vh] overflow-hidden min-w-0" :class="{ 'animate-pulse': isLoading }"> <!-- Detail Section -->
 
           <div class="col3 h-full overflow-y-auto pr-2 rounded-[2rem]">
           <template v-if="activeProject"> 

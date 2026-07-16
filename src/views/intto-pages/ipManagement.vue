@@ -19,6 +19,7 @@ function sanitize(value, pattern) {
 
 const rows = ref([])
 const loadError = ref('')
+const isLoading = ref(true) // drives the top spinner banner + animate-pulse on the table panel while the initial fetch is in flight
 const deleteError = ref('')
 const actionError = ref('')
 // Disables the Save/Delete buttons while a request is in flight — without
@@ -428,6 +429,8 @@ async function loadRecords() {
     rows.value = await getIpRecords()
   } catch (err) {
     loadError.value = 'Failed to load IP records. ' + err.message
+  } finally {
+    isLoading.value = false
   }
 }
 
@@ -489,6 +492,19 @@ function statusClass(status) {
 
 <template>
   <div class="min-h-screen bg-gray-100 font-sans">
+
+    <!-- fixed inset-0 + bg-black/50 matches the delete-confirmation
+         modal pattern already used elsewhere in this app — centers a
+         loading card over a dimmed backdrop instead of a confirm dialog. -->
+    <div v-if="isLoading" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div class="flex flex-col items-center gap-3 rounded-2xl bg-white px-8 py-6 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]">
+        <svg class="h-8 w-8 animate-spin text-[#263e30]" viewBox="0 0 24 24" fill="none">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+        </svg>
+        <span class="text-sm font-medium text-black">Loading IP records…</span>
+      </div>
+    </div>
 
     <div v-if="loadError" class="mx-4 sm:mx-6 mt-4 sm:mt-6 bg-red-50 border border-red-200 text-red-700 text-xs sm:text-sm px-4 py-3 rounded-xl">
       {{ loadError }}
@@ -677,7 +693,7 @@ function statusClass(status) {
 
     <!-- Table -->
     <div class="px-4 sm:px-6 pb-8">
-      <div class="rounded-xl overflow-hidden border border-white/5 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]">
+      <div class="rounded-xl overflow-hidden border border-white/5 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]" :class="{ 'animate-pulse': isLoading }">
         <div class="overflow-x-auto overflow-y-auto max-h-[60vh]">
           <table class="w-full border-collapse text-sm min-w-[700px]">
             <thead class="sticky top-0 z-10 divide-y divide-gray-200">
