@@ -17,6 +17,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { ChevronDownIcon } from '@heroicons/vue/24/outline'
 import { getStartupBoardData, createCohort, createStartup, updateStartup, deleteStartup } from '../../services/startupService.js'
+import PageNumbers from '../../components/tables/PageNumbers.vue'
 
 // --- Navigation / selection state ---
 const activeCohortId  = ref(null)   // id of the cohort currently shown in column 2
@@ -654,15 +655,7 @@ isSavingProject.value = true
                 :disabled="currentPage === 1"
                 @click="currentPage = Math.max(1, currentPage - 1)"
               >Prev</button>
-              <button
-                v-for="page in totalPages"
-                :key="page"
-                class="h-9 min-w-[2.25rem] rounded-full text-sm transition"
-                :class="currentPage === page ? 'bg-[#263e30] text-white' : 'border border-gray-300 text-gray-700 hover:bg-gray-100'"
-                @click="currentPage = page"
-              >
-                {{ page }}
-              </button>
+              <PageNumbers :current-page="currentPage" :total-pages="totalPages" @go-to-page="(page) => currentPage = page" />
               <button
                 class="rounded border border-gray-300 px-3 py-2 text-xs text-slate-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
                 :disabled="currentPage === totalPages"

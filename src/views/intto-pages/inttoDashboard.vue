@@ -10,7 +10,7 @@
 
 import { ref, computed, onMounted } from 'vue'
 import { getIpRecords } from '../../services/ipService.js'
-import { getCohorts, getStartups, getGenres } from '../../services/startupService.js'
+import { getStartupBoardData } from '../../services/startupService.js'
 
 // --- Raw data loaded from the backend on mount ---
 const ipRecords = ref([])   // IP filings: { id, title, inventors, filingDate, status, classification, refNumber }
@@ -19,22 +19,45 @@ const startups  = ref([])   // Startups:   { id, cohortId, name, genre, shortDes
 const genres    = ref([])   // Genre tally: { label, value } — precomputed count per genre across all startups
 const loadError = ref('')   // Populated if any of the four fetches below throw; shown as a banner in the template
 
+// Same genre-counting logic startupService.js's getGenres() uses,
+// just applied to startups data already sitting in memory instead of
+// triggering its own fetch. Calling the real getGenres() here would
+// mean a FOURTH request for the exact same /startups data loadData()
+// below already has from getStartupBoardData() — this makes that cost
+// nothing extra.
+function computeGenreCounts(startupList) {
+  const genreCounts = startupList.reduce((acc, s) => {
+    acc[s.genre] = (acc[s.genre] || 0) + 1
+    return acc
+  }, {})
+  return Object.entries(genreCounts).map(([label, value]) => ({ label, value }))
+}
+
 /**
- * Fetches all dashboard data in sequence and populates the refs above.
- * NOTE: these four calls run sequentially (awaited one after another),
- * not in parallel — the dashboard will take roughly as long as the sum of
- * all four requests. If the page ever feels slow to load, batching these
- * with Promise.all() is a candidate fix (kept sequential here since no
- * one call depends on another's result).
- * Any failure short-circuits the remaining loads and sets loadError.
+ * Fetches dashboard data as TWO requests run in parallel — getIpRecords()
+ * and getStartupBoardData() — instead of the four sequential, partly
+ * redundant calls this used to make. getCohorts() + getStartups() +
+ * getGenres() each fetched /startups on their own, meaning this page
+ * made three separate round trips to the same table, one after another,
+ * with nothing overlapping. getStartupBoardData() already fetches
+ * /cohorts and /startups together in one round trip (see
+ * startupService.js), and genres are now computed locally from that
+ * same startups array via computeGenreCounts() above instead of paying
+ * for a fourth fetch.
+ * Any failure sets loadError; Promise.all() rejects as soon as either
+ * call fails, same short-circuit behavior as before.
  */
 async function loadData() {
   loadError.value = ''
   try {
-    ipRecords.value = await getIpRecords()
-    cohorts.value   = await getCohorts()
-    startups.value  = await getStartups()
-    genres.value    = await getGenres()
+    const [records, boardData] = await Promise.all([
+      getIpRecords(),
+      getStartupBoardData(),
+    ])
+    ipRecords.value = records
+    cohorts.value   = boardData.cohorts
+    startups.value  = boardData.startups
+    genres.value    = computeGenreCounts(boardData.startups)
   } catch (err) {
     loadError.value = 'Failed to load dashboard data. ' + err.message
   }

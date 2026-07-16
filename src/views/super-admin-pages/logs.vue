@@ -7,6 +7,7 @@ import {
 } from '@heroicons/vue/24/outline';
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
 import ReusableTable from '../../components/tables/ReusableTable.vue';
+import PageNumbers from '../../components/tables/PageNumbers.vue';
 import FilterControls from '../../components/filters/FilterControls.vue';
 import { getLogs } from '../../services/logService';
 
@@ -195,9 +196,7 @@ function formatTimestamp(value) {
         <button class="rounded border border-gray-300 p-2 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50" :disabled="currentPage === 1" @click="goToPage(currentPage - 1)">
           <ChevronLeftIcon class="h-4 w-4" />
         </button>
-        <button v-for="page in totalPages" :key="page" class="h-9 w-9 rounded-full text-sm transition" :class="currentPage === page ? 'bg-[#263e30] text-white' : 'border border-gray-300 text-gray-700 hover:bg-gray-100'" @click="goToPage(page)">
-          {{ page }}
-        </button>
+        <PageNumbers :current-page="currentPage" :total-pages="totalPages" @go-to-page="goToPage" />
         <button class="rounded border border-gray-300 p-2 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50" :disabled="currentPage === totalPages" @click="goToPage(currentPage + 1)">
           <ChevronRightIcon class="h-4 w-4" />
         </button>

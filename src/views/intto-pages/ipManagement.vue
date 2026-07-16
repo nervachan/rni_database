@@ -2,6 +2,7 @@
 
 import { ref, computed, reactive, watch, onMounted } from 'vue'
 import { getIpRecords, createIpRecord, updateIpRecord, deleteIpRecord } from '../../services/ipService.js'
+import PageNumbers from '../../components/tables/PageNumbers.vue'
 import { downloadExport } from '../../utils/exportUtils.js'
 import { useAuthStore } from '../../stores/auth'
 const authStore = useAuthStore()
@@ -767,13 +768,7 @@ function statusClass(status) {
               :disabled="currentPage === 1"
               @click="currentPage = Math.max(1, currentPage - 1)"
             >Prev</button>
-            <button
-              v-for="page in totalPages"
-              :key="page"
-              class="h-9 min-w-[2.25rem] rounded-full text-sm transition"
-              :class="currentPage === page ? 'bg-[#263e30] text-white' : 'border border-gray-300 text-gray-700 hover:bg-gray-100'"
-              @click="currentPage = page"
-            >{{ page }}</button>
+            <PageNumbers :current-page="currentPage" :total-pages="totalPages" @go-to-page="(page) => currentPage = page" />
             <button
               class="rounded border border-gray-300 px-3 py-2 text-xs transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
               :disabled="currentPage === totalPages"
