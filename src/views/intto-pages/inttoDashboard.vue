@@ -10,7 +10,7 @@
 
 import { ref, computed, onMounted } from 'vue'
 import { getIpRecords } from '../../services/ipService.js'
-import { getCohorts, getStartups, getGenres } from '../../services/startupService.js'
+import { getStartupBoardData } from '../../services/startupService.js'
 
 // --- Raw data loaded from the backend on mount ---
 const ipRecords = ref([])   // IP filings: { id, title, inventors, filingDate, status, classification, refNumber }
@@ -18,25 +18,53 @@ const cohorts   = ref([])   // Cohorts:    { id, name, value } where value = sta
 const startups  = ref([])   // Startups:   { id, cohortId, name, genre, shortDescription, logo }
 const genres    = ref([])   // Genre tally: { label, value } — precomputed count per genre across all startups
 const loadError = ref('')   // Populated if any of the four fetches below throw; shown as a banner in the template
+const isLoading = ref(true) // Starts true so the very first paint already shows the pulsing skeleton state, rather than a flash of "0" before loadData() has a chance to run. Drives animate-pulse on every stat card and chart below.
+
+// Same genre-counting logic startupService.js's getGenres() uses,
+// just applied to startups data already sitting in memory instead of
+// triggering its own fetch. Calling the real getGenres() here would
+// mean a FOURTH request for the exact same /startups data loadData()
+// below already has from getStartupBoardData() — this makes that cost
+// nothing extra.
+function computeGenreCounts(startupList) {
+  const genreCounts = startupList.reduce((acc, s) => {
+    acc[s.genre] = (acc[s.genre] || 0) + 1
+    return acc
+  }, {})
+  return Object.entries(genreCounts).map(([label, value]) => ({ label, value }))
+}
 
 /**
- * Fetches all dashboard data in sequence and populates the refs above.
- * NOTE: these four calls run sequentially (awaited one after another),
- * not in parallel — the dashboard will take roughly as long as the sum of
- * all four requests. If the page ever feels slow to load, batching these
- * with Promise.all() is a candidate fix (kept sequential here since no
- * one call depends on another's result).
- * Any failure short-circuits the remaining loads and sets loadError.
+ * Fetches dashboard data as TWO requests run in parallel — getIpRecords()
+ * and getStartupBoardData() — instead of the four sequential, partly
+ * redundant calls this used to make. getCohorts() + getStartups() +
+ * getGenres() each fetched /startups on their own, meaning this page
+ * made three separate round trips to the same table, one after another,
+ * with nothing overlapping. getStartupBoardData() already fetches
+ * /cohorts and /startups together in one round trip (see
+ * startupService.js), and genres are now computed locally from that
+ * same startups array via computeGenreCounts() above instead of paying
+ * for a fourth fetch.
+ * Any failure sets loadError; Promise.all() rejects as soon as either
+ * call fails, same short-circuit behavior as before.
  */
 async function loadData() {
   loadError.value = ''
   try {
-    ipRecords.value = await getIpRecords()
-    cohorts.value   = await getCohorts()
-    startups.value  = await getStartups()
-    genres.value    = await getGenres()
+    const [records, boardData] = await Promise.all([
+      getIpRecords(),
+      getStartupBoardData(),
+    ])
+    ipRecords.value = records
+    cohorts.value   = boardData.cohorts
+    startups.value  = boardData.startups
+    genres.value    = computeGenreCounts(boardData.startups)
   } catch (err) {
     loadError.value = 'Failed to load dashboard data. ' + err.message
+  } finally {
+    // Runs whether loadData() succeeded or failed — the skeleton
+    // pulse should stop either way, not just on success.
+    isLoading.value = false
   }
 }
 
@@ -161,6 +189,24 @@ const statusChartGradient = computed(() => {
 <template>
 
   <div class="dashPage flex flex-col gap-4 p-3 sm:p-5 min-h-screen bg-grey-100">
+    <!-- Shown only while the initial dashboard fetch is in flight.
+         isLoading flips to false in loadData()'s finally block whether
+         the fetch succeeds or fails, so this and the loadError banner
+         right below it never show at the same time — by the time an
+         error could appear, this has already disappeared.
+         fixed inset-0 + bg-black/50 is the same overlay pattern already
+         used by the delete-confirmation modals elsewhere in this app —
+         just centering a loading card instead of a confirm dialog. -->
+    <div v-if="isLoading" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div class="flex flex-col items-center gap-3 rounded-2xl bg-white px-8 py-6 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]">
+        <svg class="h-8 w-8 animate-spin text-[#263e30]" viewBox="0 0 24 24" fill="none">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+        </svg>
+        <span class="text-sm font-medium text-black">Loading dashboard…</span>
+      </div>
+    </div>
+
     <div v-if="loadError" class="bg-red-50 border border-red-200 text-red-700 text-xs sm:text-sm px-4 py-3 rounded-xl">
       {{ loadError }}
     </div>
@@ -171,7 +217,8 @@ const statusChartGradient = computed(() => {
     <!-- Startup Stat Cards -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-2.5">
       <div v-for="s in startupStats" :key="s.eyebrow"
-        class="rounded-xl px-3 sm:px-4 py-2.5 sm:py-3.5 flex flex-col gap-1 min-h-[75px] sm:min-h-[90px] bg-white border border-white/10 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]">
+        class="rounded-xl px-3 sm:px-4 py-2.5 sm:py-3.5 flex flex-col gap-1 min-h-[75px] sm:min-h-[90px] bg-white border border-white/10 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]"
+        :class="{ 'animate-pulse': isLoading }">
         <span class="text-[10px] sm:text-[11px] font-medium text-black">{{ s.eyebrow }}</span>
         <span class="font-bold text-black leading-tight" :class="s.large ? 'text-[18px] sm:text-[22px]' : 'text-[20px] sm:text-[26px]'">{{ s.value }}</span>
         <span class="text-[9px] sm:text-[11px] text-black/40 mt-0.5">{{ s.sub }}</span>
@@ -180,7 +227,7 @@ const statusChartGradient = computed(() => {
 
     <!-- Startup Charts -->
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5">
-      <div class="rounded-xl px-3 sm:px-4 py-2.5 sm:py-3.5 flex flex-col gap-1 min-h-[75px] sm:min-h-[90px] bg-white border border-white/10 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]">
+      <div class="rounded-xl px-3 sm:px-4 py-2.5 sm:py-3.5 flex flex-col gap-1 min-h-[75px] sm:min-h-[90px] bg-white border border-white/10 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]" :class="{ 'animate-pulse': isLoading }">
         <p class="text-[10px] sm:text-xs font-semibold text-black mb-2 sm:mb-3.5">Startups per cohort</p>
         <div class="flex flex-col gap-2 sm:gap-3">
           <div v-for="item in startupsPerCohort" :key="item.name" class="flex items-center gap-1.5 sm:gap-2.5">
@@ -193,7 +240,7 @@ const statusChartGradient = computed(() => {
         </div>
       </div>
 
-      <div class="rounded-xl px-3 sm:px-4 py-2.5 sm:py-3.5 flex flex-col gap-1 min-h-[75px] sm:min-h-[90px] bg-white border border-white/10 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]">
+      <div class="rounded-xl px-3 sm:px-4 py-2.5 sm:py-3.5 flex flex-col gap-1 min-h-[75px] sm:min-h-[90px] bg-white border border-white/10 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]" :class="{ 'animate-pulse': isLoading }">
         <p class="text-[10px] sm:text-xs font-semibold text-black mb-2 sm:mb-3.5">Startups by genre</p>
         <div class="flex flex-col gap-2 sm:gap-3">
           <div v-for="item in startupsByGenre" :key="item.label" class="flex items-center gap-1.5 sm:gap-2.5">
@@ -213,7 +260,8 @@ const statusChartGradient = computed(() => {
     <!-- IP Stat Cards -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-2.5">
       <div v-for="s in ipStats" :key="s.eyebrow"
-        class="rounded-xl px-3 sm:px-4 py-2.5 sm:py-3.5 flex flex-col gap-1 min-h-[75px] sm:min-h-[90px] bg-white border border-white/10 shadow-[-3px_3px_6px_rgba(0,0,0,.25)]">
+        class="rounded-xl px-3 sm:px-4 py-2.5 sm:py-3.5 flex flex-col gap-1 min-h-[75px] sm:min-h-[90px] bg-white border border-white/10 shadow-[-3px_3px_6px_rgba(0,0,0,.25)]"
+        :class="{ 'animate-pulse': isLoading }">
         <span class="text-[10px] sm:text-[11px] font-medium text-black">{{ s.eyebrow }}</span>
         <span class="text-[20px] sm:text-[26px] font-bold text-black leading-tight">{{ s.value }}</span>
         <span class="text-[9px] sm:text-[11px] mt-0.5" :class="{ 'text-[#e6a817]': s.subClass === 'warn', 'text-[#2ecc71]': s.subClass === 'ok', 'text-grey/40': !s.subClass }">{{ s.sub }}</span>
@@ -222,7 +270,7 @@ const statusChartGradient = computed(() => {
 
     <!-- IP Charts -->
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5">
-      <div class="rounded-xl px-3 sm:px-4 py-2.5 sm:py-3.5 flex flex-col gap-1 min-h-[75px] sm:min-h-[90px] bg-white border border-white/10 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]">
+      <div class="rounded-xl px-3 sm:px-4 py-2.5 sm:py-3.5 flex flex-col gap-1 min-h-[75px] sm:min-h-[90px] bg-white border border-white/10 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]" :class="{ 'animate-pulse': isLoading }">
         <p class="text-[10px] sm:text-xs font-semibold text-black mb-2 sm:mb-3.5">IP by classification</p>
         <div class="flex flex-col gap-2 sm:gap-3">
           <div v-for="item in ipByClassification" :key="item.label" class="flex items-center gap-1.5 sm:gap-2.5">
@@ -235,7 +283,7 @@ const statusChartGradient = computed(() => {
         </div>
       </div>
 
-      <div class="rounded-xl px-3 sm:px-4 py-2.5 sm:py-3.5 flex flex-col gap-1 min-h-[75px] sm:min-h-[90px] bg-white border border-white/10 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]">
+      <div class="rounded-xl px-3 sm:px-4 py-2.5 sm:py-3.5 flex flex-col gap-1 min-h-[75px] sm:min-h-[90px] bg-white border border-white/10 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]" :class="{ 'animate-pulse': isLoading }">
         <p class="text-[10px] sm:text-xs font-semibold text-black mb-2 sm:mb-3.5">IP by status</p>
         <div class="flex flex-col sm:flex-row items-center gap-3 sm:gap-4">
           <div class="relative h-[180px] w-[180px] sm:h-[220px] sm:w-[220px] shrink-0 rounded-full" :style="{ background: statusChartGradient }">

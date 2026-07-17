@@ -1,4 +1,3 @@
-// rni_database/src/services/startupService.js
 import api from './api'
 
 // Convert database row to client-friendly cohort object
@@ -38,8 +37,18 @@ function toDbStartupPayload(payload) {
   return dbPayload
 }
 
-// Get the list of cohorts with the count of startups in each cohort
-export async function getCohorts() {
+// Fetches cohorts and startups together, in ONE round trip, and returns
+// both already converted to client shape. This exists because the old
+// getCohorts() below fetched BOTH /cohorts and /startups itself just to
+// compute a per-cohort startup count, then threw the /startups data
+// away — and startupManagement.vue's loadData() called getStartups()
+// again right afterward, making a SECOND request to the same table
+// only after the first had already finished. Two round trips to
+// /startups, one blocked behind the other instead of running in
+// parallel, was the actual cause of Startup Management's slow load.
+// This fetches both tables exactly once and hands back everything that
+// page needs from a single call.
+export async function getStartupBoardData() {
   let cohorts, startups
   try {
     const [cohortsRes, startupsRes] = await Promise.all([
@@ -49,8 +58,7 @@ export async function getCohorts() {
     cohorts = cohortsRes.data.cohorts
     startups = startupsRes.data.startups
   } catch (err) {
-    const status = err.response?.status ?? 'network error'
-    throw new Error(`Failed to load cohorts (${status})`)
+    throw new Error(`Failed to load startup data: ${err.message}`)
   }
 
   const startupCountByCohortId = new Map()
@@ -58,7 +66,19 @@ export async function getCohorts() {
     startupCountByCohortId.set(s.cohort_id, (startupCountByCohortId.get(s.cohort_id) ?? 0) + 1)
   })
 
-  return cohorts.map(row => toClientCohort(row, startupCountByCohortId))
+  return {
+    cohorts: cohorts.map(row => toClientCohort(row, startupCountByCohortId)),
+    startups: startups.map(toClientStartup),
+  }
+}
+
+// Get the list of cohorts with the count of startups in each cohort.
+// Still used by inttoDashboard.vue, which only needs the cohort list
+// (counts already baked in) — not the raw startups array. Delegates to
+// getStartupBoardData() above instead of duplicating its own fetch.
+export async function getCohorts() {
+  const { cohorts } = await getStartupBoardData()
+  return cohorts
 }
 
 export async function getStartups() {
@@ -67,8 +87,7 @@ export async function getStartups() {
     const { data } = await api.get('/startups')
     startups = data.startups
   } catch (err) {
-    const status = err.response?.status ?? 'network error'
-    throw new Error(`Failed to load startups (${status})`)
+    throw new Error(`Failed to load startups: ${err.message}`)
   }
 
   return startups.map(toClientStartup)
@@ -93,8 +112,7 @@ export async function createCohort(payload) {
     const { data } = await api.post('/cohorts', toDbCohortPayload(payload))
     cohort = data.cohort
   } catch (err) {
-    const status = err.response?.status ?? 'network error'
-    throw new Error(`Failed to create cohort (${status})`)
+    throw new Error(`Failed to create cohort: ${err.message}`)
   }
 
   return { id: cohort.id, name: cohort.cohort_name, value: 0 }
@@ -107,8 +125,7 @@ export async function createStartup(payload) {
     const { data } = await api.post('/startups', toDbStartupPayload(payload))
     startup = data.startup
   } catch (err) {
-    const status = err.response?.status ?? 'network error'
-    throw new Error(`Failed to create startup (${status})`)
+    throw new Error(`Failed to create startup: ${err.message}`)
   }
 
   return toClientStartup(startup)
@@ -121,8 +138,7 @@ export async function updateStartup(id, payload) {
     const { data } = await api.patch(`/startups/${id}`, toDbStartupPayload(payload))
     startup = data.startup
   } catch (err) {
-    const status = err.response?.status ?? 'network error'
-    throw new Error(`Failed to update startup (${status})`)
+    throw new Error(`Failed to update startup: ${err.message}`)
   }
 
   return toClientStartup(startup)
@@ -133,8 +149,7 @@ export async function deleteStartup(id) {
   try {
     await api.delete(`/startups/${id}`)
   } catch (err) {
-    const status = err.response?.status ?? 'network error'
-    throw new Error(`Failed to delete startup (${status})`)
+    throw new Error(`Failed to delete startup: ${err.message}`)
   }
   return true
 }

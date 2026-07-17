@@ -47,7 +47,13 @@ async function handleLogin() {
 
         router.push('/super-admin/dashboard');
     } catch (err) {
-        loginError.value = 'Invalid email or password.';
+        // Same reasoning as LoginView.vue's identical catch block —
+        // auth/user-disabled means the account exists but was
+        // deactivated, which is a different problem than a wrong
+        // password and deserves a different message.
+        loginError.value = err.code === 'auth/user-disabled'
+            ? 'This account has been deactivated. Contact your administrator.'
+            : 'Invalid email or password.';
         password.value = '';
     } finally {
         isSubmitting.value = false;
@@ -70,12 +76,13 @@ const showPassword = ref(false);
             </div>
 
             <div class="InputFields gap-4 flex flex-col w-full">
-                <input v-model="email" type="email" placeholder="Email" class="bg-gray-100 rounded-md shadow-md p-2 w-full hover:outline-none hover:ring-2 hover:ring-[#263e30] focus:outline-none focus:ring-2 focus:ring-[#263e30]">
+                <input v-model="email" type="email" placeholder="Email" class="bg-gray-100 rounded-md shadow-md p-2 w-full hover:outline-none hover:ring-2 hover:ring-[#263e30] focus:outline-none focus:ring-2 focus:ring-[#263e30]" @keyup.enter="handleLogin">
                 <p v-if="emailError" class="text-red-500 text-sm">{{ emailError }}</p>
 
                 <div class="relative w-full">
                     <input
                         v-model="password"
+                        @keyup.enter="handleLogin"
                         :type="showPassword ? 'text' : 'password'"
                         placeholder="Password"
                         class="bg-gray-100 rounded-md shadow-md p-2 w-full hover:outline-none hover:ring-2 hover:ring-[#263e30] focus:outline-none focus:ring-2 focus:ring-[#263e30]"

@@ -1,5 +1,5 @@
 <script setup>
-
+// rni_database/src/views/RegisterView.vue
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { ChevronLeftIcon } from '@heroicons/vue/24/solid';
@@ -21,6 +21,13 @@ const role = ref('');
 const roleError = ref('');
 const showSuccessModal = ref(false);
 const successMessage = ref('');
+// Disables the Sign Up button while the request is in flight — same
+// pattern as isSubmitting on LoginView.vue and SuperAdminLogin.vue.
+// Without this, a fast double-click fires two POST /api/applications
+// calls: the first succeeds and creates the Firebase user, the second
+// then fails with a confusing "email already in use" error right after
+// the person just saw a success message for the first one.
+const isSubmitting = ref(false);
 
 async function handleSignUp() {
     if (firstName.value.trim() === "") {
@@ -60,7 +67,8 @@ async function handleSignUp() {
     roleError.value = '';
 
     // Call backend
-        try {
+    isSubmitting.value = true;
+    try {
         const response = await fetch('/api/applications', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -92,6 +100,8 @@ async function handleSignUp() {
         role.value = '';
     } catch (error) {
         passwordError.value = error.message;
+    } finally {
+        isSubmitting.value = false;
     }
 }
 
@@ -171,7 +181,7 @@ function goBack() {
                         <option value="INTTO">INTTO</option>
                         <option value ="RSO">RSO</option>
                     </select>
-                    <button @click="handleSignUp" class="fixed-width bg-[#2e4e3c] text-white rounded-md p-2 hover:outline-none hover:opacity-80">Sign Up</button>
+                    <button @click="handleSignUp" :disabled="isSubmitting" class="fixed-width bg-[#2e4e3c] text-white rounded-md p-2 hover:outline-none hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50">{{ isSubmitting ? 'Submitting...' : 'Sign Up' }}</button>
                 </div>
                 <p v-if="roleError" class="text-sm text-red-500">{{ roleError }}</p>
             </div>

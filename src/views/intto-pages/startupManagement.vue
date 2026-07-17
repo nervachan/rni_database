@@ -15,11 +15,14 @@
  */
 
 import { ref, computed, watch, onMounted } from 'vue'
-import { getCohorts, getStartups, createCohort, createStartup, updateStartup, deleteStartup } from '../../services/startupService.js'
+import { ChevronDownIcon } from '@heroicons/vue/24/outline'
+import { getStartupBoardData, createCohort, createStartup, updateStartup, deleteStartup } from '../../services/startupService.js'
+import PageNumbers from '../../components/tables/PageNumbers.vue'
 
 // --- Navigation / selection state ---
 const activeCohortId  = ref(null)   // id of the cohort currently shown in column 2
 const loadError       = ref('')     // set if the initial loadData() fetch fails; rendered as a banner
+const isLoading       = ref(true)   // drives the top spinner banner + animate-pulse on all 3 columns while the initial fetch is in flight
 const activeProjectId = ref(null)   // id of the startup currently shown in column 3; null = show cohort-wide stats instead
 const projectSearch   = ref('')     // free-text filter on project name (column 2)
 const genreSearch     = ref('')     // genre filter on project list; '' or 'All' = no filter
@@ -30,7 +33,15 @@ const showProjectModal    = ref(false)     // "Edit Project" modal
 const showAddProjectModal = ref(false)     // "Add Project" modal
 const showDeleteConfirm   = ref(false)     // delete-project confirmation modal
 const deleteCandidate     = ref(null)      // the startup object pending deletion
+
 const deleteError         = ref('')        // error shown in the delete confirmation modal if the API call fails
+// Disables their respective buttons while a request is in flight — without
+// this, a fast double-click fires two concurrent create/update/delete calls,
+// producing duplicates. This was here before and got lost in a merge.
+const isSavingCohort      = ref(false)
+const isSavingProject     = ref(false)
+const isDeleting          = ref(false)
+
 const cohortModalMode     = ref('select')  // 'select' | 'add' — which tab is active inside the cohort modal
 const projectFormError    = ref('')        // validation/API error shared by the add and edit project forms
 const projectLogoError    = ref('')        // logo-specific error (e.g. file too large), shared by both forms
@@ -52,11 +63,17 @@ const localStartups = ref([])   // all startups, across all cohorts (filtered pe
 async function loadData() {
   loadError.value = ''
   try {
-    localCohorts.value   = await getCohorts()
-    localStartups.value  = await getStartups()
+    // One call, one round trip to each of /cohorts and /startups run in
+    // parallel — see getStartupBoardData() in startupService.js for why
+    // this replaced the old getCohorts() + getStartups() combo.
+    const { cohorts, startups } = await getStartupBoardData()
+    localCohorts.value   = cohorts
+    localStartups.value  = startups
     activeCohortId.value = localCohorts.value[0]?.id ?? null
   } catch (err) {
     loadError.value = 'Failed to load startup data. ' + err.message
+  } finally {
+    isLoading.value = false
   }
 }
 
@@ -69,7 +86,8 @@ onMounted(loadData)
  */
 const allGenres = computed(() => {
   const inCohort = localStartups.value.filter(s => s.cohortId === activeCohortId.value)
-  return ['All', ...new Set(inCohort.map(s => s.genre))]
+  const genres = inCohort.map(s => s.genre.trim()).filter(Boolean)
+  return ['All', ...new Set(genres)]
 })
 
 /**
@@ -80,6 +98,29 @@ const allGenres = computed(() => {
 const genreOptions = computed(() =>
   Array.from(new Set(localStartups.value.map(s => s.genre.trim()).filter(Boolean))).sort()
 )
+
+// Controls visibility of the custom genre-suggestion dropdown (replaces the
+// native <datalist>, which can't be styled and had a duplicate-id bug when
+// both the Add and Edit forms were open in the same DOM).
+const showAddGenreSuggestions  = ref(false)
+const showEditGenreSuggestions = ref(false)
+
+/** Genres from genreOptions matching the currently typed text, case-insensitive. */
+function matchingGenres(query) {
+  const q = query.trim().toLowerCase()
+  if (!q) return genreOptions.value
+  return genreOptions.value.filter(g => g.toLowerCase().includes(q))
+}
+
+function chooseAddGenre(genre) {
+  newProject.value.genre = genre
+  showAddGenreSuggestions.value = false
+}
+
+function chooseEditGenre(genre) {
+  editForm.value.genre = genre
+  showEditGenreSuggestions.value = false
+}
 
 /**
  * Startups in the active cohort matching the current name search and
@@ -161,6 +202,19 @@ function selectProject(id) {
   activeProjectId.value = id
 }
 
+/**
+ * Opens a startup from the "Recent Startups" list. Unlike selectProject()
+ * above, this can jump to a startup outside the currently active cohort
+ * (recentStartups spans all cohorts, newest first) — so it switches
+ * activeCohortId too, keeping columns 1–3 all pointed at the same startup
+ * instead of showing its detail panel while column 1/2 still highlight a
+ * different cohort.
+ */
+function selectRecentStartup(startup) {
+  activeCohortId.value  = startup.cohortId
+  activeProjectId.value = startup.id
+}
+
 /** Opens the cohort modal, always starting on the "select" tab. */
 function openCohortModal() {
   cohortModalMode.value = 'select'
@@ -186,7 +240,9 @@ function nextCohortName() {
  * Creates a new cohort using the auto-generated name from
  * nextCohortName(), then makes it the active cohort and closes the modal.
  */
-async function addCohort() {
+
+
+/* async function addCohort() {
   const name = nextCohortName()
   try {
     const created = await createCohort({ name, value: 0 })
@@ -194,9 +250,7 @@ async function addCohort() {
     activeCohortId.value  = created.id
     showCohortModal.value = false
   } catch (err) {
-    loadError.value = 'Failed to create cohort. ' + err.message
-  }
-}
+    loadError.value = 'Failed to create cohort. ' + err.message} */
 
 /** Resets the "Add Project" form to blank and opens its modal. */
 function openAddProjectModal() {
@@ -293,6 +347,26 @@ async function addProject() {
     return
   }
 
+
+  async function addCohort() {
+  const name = nextCohortName()
+  isSavingCohort.value = true
+  try {
+    const created = await createCohort({ name, value: 0 })
+    localCohorts.value.push(created)
+    activeCohortId.value  = created.id
+    showCohortModal.value = false
+  } catch (err) {
+    loadError.value = 'Failed to create cohort. ' + err.message
+  } finally {
+    isSavingCohort.value = false
+  }
+}
+
+
+//-----july 10- Updated to try and eliminate duplicate inputs
+
+  isSavingProject.value = true
   try {
     const created = await createStartup({
       cohortId:         activeCohortId.value,
@@ -309,6 +383,8 @@ async function addProject() {
     showAddProjectModal.value = false
   } catch (err) {
     projectFormError.value = 'Failed to create project. ' + err.message
+  } finally {
+    isSavingProject.value = false
   }
 }
 
@@ -351,8 +427,34 @@ function cancelDelete() {
  * modal open with an error message if the API call fails (so nothing is
  * removed locally unless the delete actually succeeded).
  */
+
+
+
+// async function confirmDelete() {
+//   if (!deleteCandidate.value) return
+
+//   try {
+//     await deleteStartup(deleteCandidate.value.id)
+//     localStartups.value = localStartups.value.filter(s => s.id !== deleteCandidate.value.id)
+
+//     const cohort = localCohorts.value.find(c => c.id === deleteCandidate.value.cohortId)
+//     if (cohort) cohort.value -= 1
+
+//     if (activeProjectId.value === deleteCandidate.value.id) {
+//       activeProjectId.value = null
+//     }
+
+//     cancelDelete()
+//   } catch (err) {
+//     deleteError.value = 'Failed to delete project. ' + err.message
+//   }
+// }
+
+
+//-----july 10- Updated to try and eliminate duplicate inputs
 async function confirmDelete() {
   if (!deleteCandidate.value) return
+  isDeleting.value = true
 
   try {
     await deleteStartup(deleteCandidate.value.id)
@@ -368,6 +470,8 @@ async function confirmDelete() {
     cancelDelete()
   } catch (err) {
     deleteError.value = 'Failed to delete project. ' + err.message
+  } finally {
+    isDeleting.value = false
   }
 }
 
@@ -393,6 +497,20 @@ async function saveProject() {
     return
   }
 
+//   try {
+//     const updated = await updateStartup(editForm.value.id, { ...editForm.value })
+//     const idx = localStartups.value.findIndex(s => s.id === editForm.value.id)
+//     if (idx !== -1) {
+//       localStartups.value[idx] = updated
+//     }
+//     showProjectModal.value = false
+//   } catch (err) {
+//     projectFormError.value = 'Failed to save project. ' + err.message
+//   }
+// }
+
+//-----july 10- Updated to try and eliminate duplicate inputs-------//
+isSavingProject.value = true
   try {
     const updated = await updateStartup(editForm.value.id, { ...editForm.value })
     const idx = localStartups.value.findIndex(s => s.id === editForm.value.id)
@@ -402,13 +520,28 @@ async function saveProject() {
     showProjectModal.value = false
   } catch (err) {
     projectFormError.value = 'Failed to save project. ' + err.message
+  } finally {
+    isSavingProject.value = false
   }
 }
 </script>
 
 <template>
   <div class="h-screen bg-gray-100 text-white p-4 sm:p-6">
-    <div class="mx-auto max-w-7xl space-y-6">
+    <div class="w-full space-y-6">
+
+      <!-- fixed inset-0 + bg-black/50 matches the delete-confirmation
+           modal pattern already used elsewhere in this app — centers a
+           loading card over a dimmed backdrop instead of a confirm dialog. -->
+      <div v-if="isLoading" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div class="flex flex-col items-center gap-3 rounded-2xl bg-white px-8 py-6 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]">
+          <svg class="h-8 w-8 animate-spin text-[#263e30]" viewBox="0 0 24 24" fill="none">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+          <span class="text-sm font-medium text-black">Loading startup data…</span>
+        </div>
+      </div>
 
       <div v-if="loadError" class="bg-red-50 border border-red-200 text-red-700 text-xs sm:text-sm px-4 py-3 rounded-xl">
         {{ loadError }}
@@ -426,7 +559,7 @@ async function saveProject() {
       <div class="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-[280px_1fr_1fr] lg:grid-cols-[280px_1fr] items-start">
 
         <!-- Column 1: Cohorts -->
-        <section class="rounded-xl bg-white p-5 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] self-start">
+        <section class="rounded-xl bg-white p-5 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] self-start min-w-0" :class="{ 'animate-pulse': isLoading }">
           <div class="flex items-center justify-between rounded-xl bg-[#263e30] px-4 py-4 gap-2">
             <span class="text-sm font-semibold uppercase tracking-[0.24em] text-white">All Cohorts</span>
             <button
@@ -456,7 +589,7 @@ async function saveProject() {
         </section>
 
         <!-- Column 2: Projects -->
-        <section class="rounded-xl bg-white p-5 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] self-start">
+        <section class="rounded-xl bg-white p-5 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] self-start min-w-0" :class="{ 'animate-pulse': isLoading }">
 
           <div class="flex items-center justify-between rounded-xl bg-[#263e30] px-4 py-4 gap-2"> <!-- Projects Header -->
             <span class="text-sm font-semibold uppercase tracking-[0.24em] text-white">Projects</span>
@@ -468,20 +601,25 @@ async function saveProject() {
 
 
           <div class="grid gap-3 sm:grid-cols-3 mb-4 p-3"> <!-- Search and Filters -->
-            <input
-              v-model="projectSearch"
-              placeholder="Search project..."
-              class="w-full rounded-[2rem] border border-gray-200 bg-gray-100 px-4 py-3 text-sm text-black outline-none focus:border-[#263e30]"
-            />
-            <select
-              v-model="genreSearch"
-              class="w-full rounded-[2rem] border border-gray-200 bg-gray-100 px-4 py-3 text-sm outline-none focus:border-[#263e30] text-black"
-            >
-              <option v-for="g in allGenres" :key="g" :value="g">{{ g }}</option>
-              <option value="" disabled selected hidden> Genre...</option>
-            </select>
-            <div class="flex items-center gap-2">
-              <label class="min-w-max text-xs text-neutral-600">Display</label>
+            <div class="flex flex-col gap-1">
+              <label class="text-xs text-neutral-600">Project</label>
+              <input
+                v-model="projectSearch"
+                placeholder="Search project..."
+                class="w-full rounded-[2rem] border border-gray-200 bg-gray-100 px-4 py-3 text-sm text-black outline-none focus:border-[#263e30]"
+              />
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-xs text-neutral-600">Genre</label>
+              <select
+                v-model="genreSearch"
+                class="w-full rounded-[2rem] border border-gray-200 bg-gray-100 px-4 py-3 text-sm outline-none focus:border-[#263e30] text-black"
+              >
+                <option v-for="g in allGenres" :key="g" :value="g">{{ g }}</option>
+              </select>
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-xs text-neutral-600">Display</label>
               <select
                 v-model="itemsPerPage"
                 class="w-full rounded-[2rem] border border-gray-200 bg-gray-100 px-4 py-3 text-sm outline-none focus:border-[#263e30] text-black"
@@ -533,15 +671,7 @@ async function saveProject() {
                 :disabled="currentPage === 1"
                 @click="currentPage = Math.max(1, currentPage - 1)"
               >Prev</button>
-              <button
-                v-for="page in totalPages"
-                :key="page"
-                class="h-9 min-w-[2.25rem] rounded-full text-sm transition"
-                :class="currentPage === page ? 'bg-[#263e30] text-white' : 'border border-gray-300 text-gray-700 hover:bg-gray-100'"
-                @click="currentPage = page"
-              >
-                {{ page }}
-              </button>
+              <PageNumbers :current-page="currentPage" :total-pages="totalPages" @go-to-page="(page) => currentPage = page" />
               <button
                 class="rounded border border-gray-300 px-3 py-2 text-xs text-slate-700 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
                 :disabled="currentPage === totalPages"
@@ -552,22 +682,26 @@ async function saveProject() {
         </section>
 
         <!-- Column 3: Detail -->
-        <section class="rounded-xl bg-white shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] md:h-[70vh] overflow-hidden"> <!-- Detail Section -->
+        <section class="rounded-xl bg-white shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] md:h-[70vh] overflow-hidden min-w-0" :class="{ 'animate-pulse': isLoading }"> <!-- Detail Section -->
 
           <div class="col3 h-full overflow-y-auto pr-2 rounded-[2rem]">
           <template v-if="activeProject"> 
             <div class="flex items-center justify-between gap-4 p-5 md:sticky md:top-0 bg-white rounded-t-[2rem] z-10">
-              <div class="flex items-center gap-4">
-                <div class="h-20 w-20 overflow-hidden rounded-3xl bg-slate-200">
+              <div class="flex items-center gap-4 min-w-0">
+                <div class="h-20 w-20 flex-shrink-0 overflow-hidden rounded-3xl bg-slate-200">
                   <!--fall back logo (UC Official Seal), if no logo is selected-->
                   <img :src="activeProject.logo || '/UC_Official_Seal.png'" alt="Project logo" class="h-full w-full object-cover" />
                 </div>
-                <div>
-                  <h2 class="text-xl font-semibold text-black">{{ activeProject.name }}</h2>
-                  <p class="text-xs text-slate-600">{{ activeProject.genre }} · {{ cohortName(activeProject.cohortId) }}</p>
+                <div class="min-w-0">
+                  <h2 class="text-xl font-semibold text-black truncate">{{ activeProject.name }}</h2>
+                  <p class="text-xs text-slate-600 truncate">{{ activeProject.genre }} · {{ cohortName(activeProject.cohortId) }}</p>
                 </div>
               </div>
               <div class="flex gap-2">
+                <button
+                  @click="activeProjectId = null"
+                  class="rounded-2xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition"
+                >← Back</button>
                 <button
                   @click="openEditModal"
                   class="rounded-2xl bg-[#263e30] px-4 py-2 text-sm font-semibold text-white hover:bg-[#4d7c5e] transition"
@@ -590,24 +724,42 @@ async function saveProject() {
 
           <template v-else> <!-- No Project Selected -->
             <div class="grid gap-4 grid-cols-1 sm:grid-cols-3 p-5">
-              <div class="rounded-[2rem] bg-gray-100 p-4 text-black ">
+              <!-- flex flex-col + h-full on each card, mt-auto on the
+                   number: grid cells already stretch to match the
+                   tallest card in the row (CSS Grid's default), but the
+                   number was pinned a fixed distance below its OWN
+                   label with mt-4 — so if "In Selected Cohort" ever
+                   wraps to two lines at a narrower width while the
+                   other two stay on one line, that card's number sits
+                   a full line lower than the other two even though all
+                   three cards are the same height. mt-auto pushes the
+                   number to the bottom of its card instead, so all
+                   three line up regardless of how many lines a label
+                   takes. -->
+              <div class="flex h-full flex-col rounded-[2rem] bg-gray-100 p-4 text-black ">
                 <p class="text-xs uppercase tracking-widest text-slate-600">Total Startups</p>
-                <p class="mt-4 text-3xl font-semibold">{{ localStartups.length }}</p>
+                <p class="mt-auto text-3xl font-semibold">{{ localStartups.length }}</p>
               </div>
-              <div class="rounded-[2rem] bg-gray-100 p-4 text-black">
+              <div class="flex h-full flex-col rounded-[2rem] bg-gray-100 p-4 text-black">
                 <p class="text-xs uppercase tracking-widest text-slate-400">Cohorts</p>
-                <p class="mt-4 text-3xl font-semibold">{{ localCohorts.length }}</p>
+                <p class="mt-auto text-3xl font-semibold">{{ localCohorts.length }}</p>
               </div>
-              <div class="rounded-[2rem] bg-gray-100 p-4 text-black">
+              <div class="flex h-full flex-col rounded-[2rem] bg-gray-100 p-4 text-black">
                 <p class="text-xs uppercase tracking-widest text-slate-400">In Selected Cohort</p>
-                <p class="mt-4 text-3xl font-semibold">{{ activeCohortCount }}</p>
+                <p class="mt-auto text-3xl font-semibold">{{ activeCohortCount }}</p>
               </div>
             </div>
             <div class="mt-4 mx-5 mb-5 rounded-[2rem] bg-gray-100 p-5">
               <h3 class="text-base font-semibold text-black mb-4">Recent Startups</h3>
               <ul class="space-y-3 text-sm text-slate-700">
-                <li v-for="s in recentStartups" :key="s.id" class="border-b border-slate-200 pb-3 last:border-b-0 last:pb-0">
-                  <span class="font-semibold text-black">{{ s.name }}</span> — {{ s.shortDescription }}
+                <li
+                  v-for="s in recentStartups"
+                  :key="s.id"
+                  @click="selectRecentStartup(s)"
+                  class="min-w-0 cursor-pointer border-b border-slate-200 pb-3 transition last:border-b-0 last:pb-0 hover:text-[#263e30] hover:*:bg-[#c3d7c8]"
+                >
+                  <p class="truncate font-semibold text-black">{{ s.name }}</p>
+                  <p class="truncate text-slate-600">{{ s.shortDescription }}</p>
                 </li>
               </ul>
             </div>
@@ -655,10 +807,22 @@ async function saveProject() {
       <div v-if="cohortModalMode === 'add'" class="space-y-3">
         <p class="text-sm text-slate-600">New cohort name will be:</p>
         <div class="rounded-2xl border border-gray-200 bg-gray-100 px-4 py-3 text-sm text-black">{{ nextCohortName() }}</div>
-        <button
+        <!-- <button
           @click="addCohort"
           class="w-full rounded-2xl bg-[#263e30] py-2 text-sm font-semibold text-white hover:bg-[#4d7c5e] transition"
-        >Add Cohort</button>
+        >Add Cohort</button> -->
+        <!--july 10-[bug fix]: duplicate entries on double click-->
+        <button
+          @click="addCohort"
+          :disabled="isSavingCohort"
+          class="w-full flex items-center justify-center gap-2 rounded-2xl bg-[#263e30] py-2 text-sm font-semibold text-white hover:bg-[#4d7c5e] transition disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <svg v-if="isSavingCohort" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+          </svg>
+          {{ isSavingCohort ? 'Adding...' : 'Add Cohort' }}
+        </button>
       </div>
     </div>
   </div>
@@ -678,22 +842,30 @@ async function saveProject() {
         />
         <div class="relative">
           <input
-            list="genre-options"
             v-model="newProject.genre"
             placeholder="Genre (e.g. HealthTech)"
-            class="w-full rounded-2xl border border-gray-200 bg-gray-100 px-4 py-3 text-sm text-black outline-none focus:border-[#263e30]"
+            class="w-full rounded-2xl border border-gray-200 bg-gray-100 py-3 pl-4 pr-10 text-sm text-black outline-none focus:border-[#263e30]"
+            @focus="showAddGenreSuggestions = true"
+            @blur="showAddGenreSuggestions = false"
           />
-          <!-- FLAG: this same id="genre-options" datalist is duplicated below
-               in the Edit Project Modal. Duplicate ids are invalid HTML —
-               the browser will always resolve the input's `list` attribute
-               to whichever one comes first in the DOM, so the Edit modal's
-               genre autocomplete may silently use the wrong (Add modal's)
-               datalist if both are ever rendered in the same DOM pass.
-               Recommend giving each a unique id, e.g. "genre-options-add"
-               and "genre-options-edit". -->
-          <datalist id="genre-options">
-            <option v-for="genre in genreOptions" :key="genre" :value="genre" />
-          </datalist>
+          <!-- This is a free-text input with a custom suggestion list
+               below it (matchingGenres()), not a native <select> — so
+               without this icon there's nothing telling a person that
+               typing here shows existing genre options. pointer-events-none
+               so the icon never blocks clicking/focusing the input
+               underneath it. -->
+          <ChevronDownIcon class="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <ul
+            v-if="showAddGenreSuggestions && matchingGenres(newProject.genre).length"
+            class="absolute z-10 mt-1 w-full max-h-40 overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-lg"
+          >
+            <li
+              v-for="genre in matchingGenres(newProject.genre)"
+              :key="genre"
+              @mousedown.prevent="chooseAddGenre(genre)"
+              class="cursor-pointer px-4 py-2 text-sm text-black hover:bg-[#c3d7c8]"
+            >{{ genre }}</li>
+          </ul>
         </div>
         <textarea
           v-model="newProject.shortDescription"
@@ -718,10 +890,22 @@ async function saveProject() {
         </div>
       </div>
       <p v-if="projectFormError" class="text-sm text-red-600">{{ projectFormError }}</p>
-      <button
+      <!-- <button
         @click="addProject"
         class="w-full rounded-2xl bg-[#263e30] py-2 text-sm font-semibold text-white hover:bg-[#4d7c5e] transition"
-      >Add Project</button>
+      >Add Project</button> -->
+      <!--july 10-[bug fix]: duplicate entries on double click-->
+      <button
+        @click="addProject"
+        :disabled="isSavingProject"
+        class="w-full flex items-center justify-center gap-2 rounded-2xl bg-[#263e30] py-2 text-sm font-semibold text-white hover:bg-[#4d7c5e] transition disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <svg v-if="isSavingProject" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+        </svg>
+        {{ isSavingProject ? 'Adding...' : 'Add Project' }}
+      </button>
     </div>
   </div>
 
@@ -740,14 +924,25 @@ async function saveProject() {
         />
         <div class="relative">
           <input
-            list="genre-options"
             v-model="editForm.genre"
             placeholder="Genre"
-            class="w-full rounded-2xl border border-gray-200 bg-gray-100 px-4 py-3 text-sm text-black outline-none focus:border-[#263e30]"
+            class="w-full rounded-2xl border border-gray-200 bg-gray-100 py-3 pl-4 pr-10 text-sm text-black outline-none focus:border-[#263e30]"
+            @focus="showEditGenreSuggestions = true"
+            @blur="showEditGenreSuggestions = false"
           />
-          <datalist id="genre-options">
-            <option v-for="genre in genreOptions" :key="genre" :value="genre" />
-          </datalist>
+          <!-- Same reasoning as the Add Project genre input above. -->
+          <ChevronDownIcon class="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <ul
+            v-if="showEditGenreSuggestions && matchingGenres(editForm.genre).length"
+            class="absolute z-10 mt-1 w-full max-h-40 overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-lg"
+          >
+            <li
+              v-for="genre in matchingGenres(editForm.genre)"
+              :key="genre"
+              @mousedown.prevent="chooseEditGenre(genre)"
+              class="cursor-pointer px-4 py-2 text-sm text-black hover:bg-[#c3d7c8]"
+            >{{ genre }}</li>
+          </ul>
         </div>
         <textarea
           v-model="editForm.shortDescription"
@@ -770,10 +965,23 @@ async function saveProject() {
         </div>
       </div>
       <p v-if="projectFormError" class="text-sm text-red-600">{{ projectFormError }}</p>
-      <button
+      <!-- <button
         @click="saveProject"
         class="w-full rounded-2xl bg-[#263e30] py-2 text-sm font-semibold text-white hover:bg-[#4d7c5e] transition"
-      >Save Changes</button>
+      >Save Changes</button> -->
+
+      <!--july 10-[bug fix]: duplicate entries on double click-->
+      <button
+        @click="saveProject"
+        :disabled="isSavingProject"
+        class="w-full flex items-center justify-center gap-2 rounded-2xl bg-[#263e30] py-2 text-sm font-semibold text-white hover:bg-[#4d7c5e] transition disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <svg v-if="isSavingProject" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+        </svg>
+        {{ isSavingProject ? 'Saving...' : 'Save Changes' }}
+      </button>
     </div>
   </div>
 
@@ -784,8 +992,18 @@ async function saveProject() {
       <p class="text-sm text-slate-600">Are you sure you want to delete <strong>{{ deleteCandidate?.name }}</strong>? This action cannot be undone.</p>
       <p v-if="deleteError" class="text-sm text-red-600">{{ deleteError }}</p>
       <div class="flex justify-end gap-3">
+        <!-- <button type="button" @click="cancelDelete" class="rounded-2xl border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Cancel</button>
+        <button type="button" @click="confirmDelete" class="rounded-2xl bg-[#e05c5c] px-4 py-2 text-sm font-semibold text-white hover:bg-[#c44343]">Delete</button> -->
+          
+        <!--july 10-[bug fix]: duplicate entries on double click-->
         <button type="button" @click="cancelDelete" class="rounded-2xl border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Cancel</button>
-        <button type="button" @click="confirmDelete" class="rounded-2xl bg-[#e05c5c] px-4 py-2 text-sm font-semibold text-white hover:bg-[#c44343]">Delete</button>
+        <button type="button" :disabled="isDeleting" @click="confirmDelete" class="flex items-center gap-2 rounded-2xl bg-[#e05c5c] px-4 py-2 text-sm font-semibold text-white hover:bg-[#c44343] disabled:cursor-not-allowed disabled:opacity-60">
+          <svg v-if="isDeleting" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+          </svg>
+          {{ isDeleting ? 'Deleting...' : 'Delete' }}
+        </button>
       </div>
     </div>
   </div>

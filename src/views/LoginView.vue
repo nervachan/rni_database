@@ -1,5 +1,5 @@
 <script setup>
-
+// rni_database/src/views/LoginView.vue
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { EyeIcon, EyeSlashIcon } from '@heroicons/vue/24/outline';
@@ -49,7 +49,19 @@ async function handleLogin() {
 
         router.push(`/${selectedRole}-admin/dashboard`);
     } catch (err) {
-        loginError.value = 'Invalid email or password.';
+        // auth/user-disabled is Firebase's specific code for "this
+        // account exists but has been deactivated" — distinct from a
+        // wrong password (auth/wrong-password) or an unknown email
+        // (auth/user-not-found). Showing the generic message for ALL
+        // three, like this used to, told a deactivated user their
+        // PASSWORD was wrong, which sends them straight to "forgot
+        // password" instead of "contact an admin" — the actual fix.
+        // Checking the code here doesn't leak whether an email exists;
+        // it only reveals account status, and only once someone has
+        // already supplied a correct password for it.
+        loginError.value = err.code === 'auth/user-disabled'
+            ? 'This account has been deactivated. Contact your administrator.'
+            : 'Invalid email or password.';
         password.value = '';
     } finally {
         isSubmitting.value = false;
@@ -61,7 +73,6 @@ function goToRegister() {
 }
 
 const showPassword = ref(false);
-
 </script>
 
 <template>
@@ -98,12 +109,13 @@ const showPassword = ref(false);
             </div>
 
             <div class="InputFields gap-4 flex flex-col w-full">
-                <input v-model="email" type="email" placeholder="Email" class="bg-gray-100 rounded-md shadow-md p-2 w-full hover:outline-none hover:ring-2 hover:ring-[#263e30] focus:outline-none focus:ring-2 focus:ring-[#263e30]">
+                <input v-model="email" type="email" placeholder="Email" class="bg-gray-100 rounded-md shadow-md p-2 w-full hover:outline-none hover:ring-2 hover:ring-[#263e30] focus:outline-none focus:ring-2 focus:ring-[#263e30]" @keyup.enter="handleLogin">
                 <p v-if="emailError" class="text-red-500 text-sm">{{ emailError }}</p>
 
                 <div class="relative w-full">
                     <input
                         v-model="password"
+                        @keyup.enter="handleLogin"
                         :type="showPassword ? 'text' : 'password'"
                         placeholder="Password"
                         class="bg-gray-100 rounded-md shadow-md p-2 w-full hover:outline-none hover:ring-2 hover:ring-[#263e30] focus:outline-none focus:ring-2 focus:ring-[#263e30]"

@@ -1,4 +1,5 @@
 <script setup>
+// rni_database/src/views/rso-pages/resEntryMgmt.vue
 import {
   MagnifyingGlassIcon,
   XMarkIcon,
@@ -11,9 +12,13 @@ import {
 } from '@heroicons/vue/24/outline';
 import { computed, ref, watch, onMounted } from 'vue';
 import ReusableTable from '../../components/tables/ReusableTable.vue';
+import PageNumbers from '../../components/tables/PageNumbers.vue';
 import FilterControls from '../../components/filters/FilterControls.vue';
 import SortControls from '../../components/filters/SortControls.vue';
 import { createResearchEntry, deleteResearchEntry, getResearchEntries, updateResearchEntry } from '../../services/researchEntryService';
+import { useAuthStore } from '../../stores/auth';
+const authStore = useAuthStore();
+const isReadOnly = computed(() => authStore.isReadOnly);
 
 const TITLE_DISALLOWED = /[<>{}[\]\\|`;]/g
 const NAME_DISALLOWED = /[^a-zA-Z\u00C0-\u017F\s.,'-]/g
@@ -93,11 +98,18 @@ const tableColumns = [
   { key: 'actions', label: 'Actions', widthClass: 'w-[10rem]', type: 'actions' },
 ];
 
-const tableActions = [
-  { key: 'view', title: 'View', icon: EyeIcon, className: 'border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100' },
-  { key: 'edit', title: 'Edit', icon: PencilSquareIcon, className: 'border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100' },
-  { key: 'delete', title: 'Delete', icon: TrashIcon, className: 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100' },
-];
+const tableActions = computed(() => {
+  const actions = [
+    { key: 'view', title: 'View', icon: EyeIcon, className: 'border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100' },
+  ];
+  if (!isReadOnly.value) {
+    actions.push(
+      { key: 'edit', title: 'Edit', icon: PencilSquareIcon, className: 'border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100' },
+      { key: 'delete', title: 'Delete', icon: TrashIcon, className: 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100' },
+    );
+  }
+  return actions;
+});
 
 const filteredEntries = computed(() => {
   const q = searchQuery.value.trim().toLowerCase();
@@ -280,6 +292,19 @@ function trackFormChanges() {
   hasUnsavedChanges.value = original ? JSON.stringify(current) !== JSON.stringify(original) : Object.values(current).some((value) => value);
 }
 
+// Case-insensitive, whitespace-trimmed duplicate title check. Without
+// the .toLowerCase() here, "Case Study" and "case study" (or "CASE
+// STUDY") would be treated as different titles and both would be
+// allowed through — same duplicate-check pattern already used for IP
+// records (ipManagement.vue) and startups (startupManagement.vue),
+// research entries just never had one.
+// excludeId lets an edit compare against every OTHER entry without
+// flagging itself as a conflict with its own unchanged title.
+function recordTitleAlreadyExists(title, excludeId = null) {
+  const normalized = title.trim().toLowerCase();
+  return researchEntries.value.some((entry) => entry.id !== excludeId && entry.title.trim().toLowerCase() === normalized);
+}
+
 function saveEntry() {
   modalError.value = '';
 
@@ -288,6 +313,11 @@ function saveEntry() {
 
   if (!title || !authors) {
     modalError.value = 'Title and Authors are required.';
+    return;
+  }
+
+  if (recordTitleAlreadyExists(title, selectedEntry.value?.id)) {
+    modalError.value = 'A research entry with this title already exists.';
     return;
   }
 
@@ -383,6 +413,19 @@ function handleTableAction({ action, row }) {
 
 <template>
   <div class="EntryPage flex flex-col gap-4">
+    <!-- fixed inset-0 + bg-black/50 matches the delete-confirmation
+         modal pattern already used elsewhere in this app — centers a
+         loading card over a dimmed backdrop instead of a confirm dialog. -->
+    <div v-if="isLoading" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div class="flex flex-col items-center gap-3 rounded-2xl bg-white px-8 py-6 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)]">
+        <svg class="h-8 w-8 animate-spin text-[#263e30]" viewBox="0 0 24 24" fill="none">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+        </svg>
+        <span class="text-sm font-medium text-black">Loading research entries…</span>
+      </div>
+    </div>
+
     <div v-if="loadError" class="bg-red-50 border border-red-200 text-red-700 text-xs sm:text-sm px-4 py-3 rounded-xl">
       {{ loadError }}
     </div>
@@ -398,7 +441,7 @@ function handleTableAction({ action, row }) {
         </button>
       </div>
 
-      <button class="flex shrink-0 items-center justify-center gap-2 rounded-lg bg-[#263e30] p-2 text-sm text-white transition hover:opacity-80" @click="openAddModal">
+      <button v-if="!isReadOnly" class="flex shrink-0 items-center justify-center gap-2 rounded-lg bg-[#263e30] p-2 text-sm text-white transition hover:opacity-80" @click="openAddModal">
         <PlusIcon class="h-6 w-6 text-white" />
         Add New Entry
       </button>
@@ -433,32 +476,24 @@ function handleTableAction({ action, row }) {
       </div>
     </div>
 
-    <div v-if="isLoading" class="flex items-center justify-center py-16">
-      <svg class="h-6 w-6 animate-spin text-[#263e30]" fill="none" viewBox="0 0 24 24">
-        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
-      </svg>
+    <div :class="{ 'animate-pulse': isLoading }">
+      <ReusableTable
+        :rows="paginatedEntries"
+        :columns="tableColumns"
+        :actions="tableActions"
+        empty-text="No research entries found"
+        mobile-card-title-key="title"
+        mobile-card-subtitle-key="authors"
+        :mobile-card-meta-keys="['coAuthors', 'startDate']"
+        @action="handleTableAction"
+      />
     </div>
-
-    <ReusableTable
-      v-else
-      :rows="paginatedEntries"
-      :columns="tableColumns"
-      :actions="tableActions"
-      empty-text="No research entries found"
-      mobile-card-title-key="title"
-      mobile-card-subtitle-key="authors"
-      :mobile-card-meta-keys="['coAuthors', 'startDate']"
-      @action="handleTableAction"
-    />
 
     <div class="flex items-center justify-center gap-2 pt-2">
       <button class="rounded border border-gray-300 p-2 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50" :disabled="currentPage === 1" @click="goToPage(currentPage - 1)">
         <ChevronLeftIcon class="h-4 w-4" />
       </button>
-      <button v-for="page in totalPages" :key="page" class="h-9 w-9 rounded-full text-sm transition" :class="currentPage === page ? 'bg-[#263e30] text-white' : 'border border-gray-300 text-gray-700 hover:bg-gray-100'" @click="goToPage(page)">
-        {{ page }}
-      </button>
+      <PageNumbers :current-page="currentPage" :total-pages="totalPages" @go-to-page="goToPage" />
       <button class="rounded border border-gray-300 p-2 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50" :disabled="currentPage === totalPages" @click="goToPage(currentPage + 1)">
         <ChevronRightIcon class="h-4 w-4" />
       </button>
@@ -486,7 +521,7 @@ function handleTableAction({ action, row }) {
           <div><span class="font-semibold">Start Date:</span> {{ selectedEntry.startDate }}</div>
           <div><span class="font-semibold">End Date:</span> {{ selectedEntry.endDate }}</div>
           <div><span class="font-semibold">ISBN:</span> {{ selectedEntry.isbn || 'N/A' }}</div>
-          <div><span class="font-semibold">Scopus Link:</span> <span v-if="selectedEntry.scopusLink" class="text-blue-600 underline">Link</span><span v-else>N/A</span></div>
+          <div><span class="font-semibold">Scopus Link:</span> <a v-if="selectedEntry.scopusLink" :href="selectedEntry.scopusLink" target="_blank" rel="noopener noreferrer" class="text-blue-600 underline hover:text-blue-800">Link</a><span v-else>N/A</span></div>
           <div><span class="font-semibold">Abstract / Summary:</span> {{ selectedEntry.abstract || 'N/A' }}</div>
         </div>
 
