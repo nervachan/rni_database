@@ -138,6 +138,10 @@ Recommendations for future development, based on gaps identified during this int
 - **Export**: Executive role can export reports covering both RSO and INTTO data in a single action.
 - Export scope/format for regular RSO and INTTO roles needs further clarification from stakeholders before implementation.
 
+### 7.3 System Backup
+- **Backup**: Data from the system should be backed up somewhere else and should be accessible in case of emergencies
+- **Backup Intervals**: Data should be backed up daily (recommended) or weekly. 
+
 ---
 
 *Document status: Sections 4.1 (CRUD table) and 5 (Schema) are complete. Section 4 (CRUD backend function walkthrough) and 6.3 (createSuperAdmin usage) are pending further input.*
