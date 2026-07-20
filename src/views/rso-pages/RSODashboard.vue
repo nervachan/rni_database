@@ -23,15 +23,17 @@ async function loadData() {
 onMounted(loadData);
 
 const totalResearch = computed(() => researchEntries.value.length);
-const avgResearchDuration = computed(() => {
-  if (!researchEntries.value.length) return 0;
-  const totalDays = researchEntries.value.reduce((sum, entry) => {
-    if (!entry.startDate || !entry.endDate) return sum;
-    const start = new Date(entry.startDate);
-    const end = new Date(entry.endDate);
-    return sum + Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)));
-  }, 0);
-  return (totalDays / researchEntries.value.length).toFixed(1);
+// Counts research entries whose start date falls in the current
+// calendar year. startDate is used rather than a "created at" field
+// because research_entries doesn't expose a separate submission
+// timestamp to the client — see toClientRecord() in
+// researchEntryService.js, which only maps startDate/endDate.
+const entriesThisYear = computed(() => {
+  const currentYear = new Date().getFullYear();
+  return researchEntries.value.filter((entry) => {
+    if (!entry.startDate) return false;
+    return new Date(entry.startDate).getFullYear() === currentYear;
+  }).length;
 });
 
 const recentEntries = computed(() => researchEntries.value.slice(0, 5).map((entry) => ({
@@ -73,8 +75,8 @@ const recentEntries = computed(() => researchEntries.value.slice(0, 5).map((entr
             </div>
             <div class="totalINTTO flex flex-col bg-[#ffffff] rounded-lg p-3 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] gap-1" :class="{ 'animate-pulse': isLoading }">
                 <span class="w-9 h-9 flex flex-col items-center justify-center rounded-2xl bg-amber-100"><CalendarIcon class="w-6 h-6 text-amber-500"/></span>
-                <p>Average Research Duration</p>
-                <h1>{{ avgResearchDuration }} Years</h1>
+                <p>Research Entries This Year</p>
+                <h1>{{ entriesThisYear }} Entries</h1>
             </div>
 
             <!--Recent Entries Section-->
