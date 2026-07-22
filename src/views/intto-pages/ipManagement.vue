@@ -399,6 +399,7 @@ async function handleImportFile(event) {
     }
 
     let importedCount = 0
+    const skippedTitles = []
     try {
       for (const csvRow of rowsToImport) {
         const record = {
@@ -408,9 +409,28 @@ async function handleImportFile(event) {
           classification: csvRow.classification.trim(),
           status: csvRow.status.trim(),
         }
+
+        // Same check submitForm() already runs for the manual Add/Edit
+        // form (see recordTitleAlreadyExists() above) — the import loop
+        // never called it before, so importing the same file twice, or a
+        // CSV containing a title that already exists, silently created
+        // full duplicate rows with no warning at all. Checking against
+        // rows.value here — which gets pushed to on every successful
+        // create just below — also naturally catches a duplicate title
+        // appearing TWICE within the same CSV file, not just duplicates
+        // against records that already existed before the import started.
+        if (recordTitleAlreadyExists(record.title)) {
+          skippedTitles.push(record.title)
+          continue
+        }
+
         const created = await createIpRecord(record)
         rows.value.push(created)
         importedCount += 1
+      }
+
+      if (skippedTitles.length) {
+        importError.value = `Imported ${importedCount} of ${rowsToImport.length} rows. Skipped ${skippedTitles.length} duplicate title(s): ${skippedTitles.join(', ')}.`
       }
     } catch (err) {
       importError.value = `Imported ${importedCount} of ${rowsToImport.length} rows, then failed: ${err.message}`

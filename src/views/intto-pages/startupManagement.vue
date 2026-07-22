@@ -25,7 +25,7 @@ const loadError       = ref('')     // set if the initial loadData() fetch fails
 const isLoading       = ref(true)   // drives the top spinner banner + animate-pulse on all 3 columns while the initial fetch is in flight
 const activeProjectId = ref(null)   // id of the startup currently shown in column 3; null = show cohort-wide stats instead
 const projectSearch   = ref('')     // free-text filter on project name (column 2)
-const genreSearch     = ref('')     // genre filter on project list; '' or 'All' = no filter
+const genreSearch     = ref('All')  // genre filter on project list; 'All' = no filter (see allGenres below, which always includes 'All' as its first real option)
 
 // --- Modal / form visibility + error state ---
 const showCohortModal     = ref(false)     // "Manage Cohorts" modal (select existing / add new)
@@ -140,7 +140,11 @@ const filteredStartups = computed(() => {
   return localStartups.value.filter(s =>
     s.cohortId === activeCohortId.value &&
     s.name.toLowerCase().includes(name) &&
-    (genre === '' || genre === 'All' || s.genre === genre)
+    // genreSearch is now always either 'All' or a real genre string —
+    // never '' — so the old `genre === ''` check here is gone. Keeping
+    // a dead check for a state that can no longer happen just invites a
+    // future reader to wonder what sets it back to '', when nothing does.
+    (genre === 'All' || s.genre === genre)
   )
 })
 
@@ -201,7 +205,7 @@ function cohortName(id) {
 function selectCohort(id) {
   activeCohortId.value  = id
   activeProjectId.value = null
-  genreSearch.value     = ''
+  genreSearch.value     = 'All'
   showCohortModal.value = false
 }
 
