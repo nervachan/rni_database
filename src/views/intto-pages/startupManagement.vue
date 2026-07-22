@@ -30,7 +30,15 @@ const genreSearch     = ref('')     // genre filter on project list; '' or 'All'
 // --- Modal / form visibility + error state ---
 const showCohortModal     = ref(false)     // "Manage Cohorts" modal (select existing / add new)
 const showProjectModal    = ref(false)     // "Edit Project" modal
-const showAddProjectModal = ref(false)     // "Add Project" modal
+// NOTE for future readers: the button/modal this controls now displays
+// "Add Startup" in the UI (changed from "Project" wording). The variable
+// and function names below (showAddProjectModal, newProject, addProject(),
+// isSavingProject, projectFormError, etc.) were deliberately left
+// unchanged — renaming them touches many call sites throughout this file
+// and wasn't part of this change. If you're renaming things here later,
+// this comment is your signal that the UI label and the internal names
+// are intentionally out of sync, not a mistake.
+const showAddProjectModal = ref(false)     // "Add Startup" modal
 const showDeleteConfirm   = ref(false)     // delete-project confirmation modal
 const deleteCandidate     = ref(null)      // the startup object pending deletion
 
@@ -47,7 +55,7 @@ const projectFormError    = ref('')        // validation/API error shared by the
 const projectLogoError    = ref('')        // logo-specific error (e.g. file too large), shared by both forms
 const itemsPerPage        = ref(10)        // rows per page for paginatedStartups
 const currentPage         = ref(1)         // 1-indexed current page within the active cohort's project list
-const newProject          = ref({ name: '', genre: '', shortDescription: '', logo: '' })  // "Add Project" form model
+const newProject          = ref({ name: '', genre: '', shortDescription: '', logo: '' })  // "Add Startup" form model (variable name unchanged — see note above)
 const editSelectedName    = ref('')        // display name of the chosen logo file in the edit form (UI only)
 const addSelectedName     = ref('')        // display name of the chosen logo file in the add form (UI only)
 
@@ -252,7 +260,7 @@ function nextCohortName() {
   } catch (err) {
     loadError.value = 'Failed to create cohort. ' + err.message} */
 
-/** Resets the "Add Project" form to blank and opens its modal. */
+/** Resets the "Add Startup" form to blank and opens its modal. */
 function openAddProjectModal() {
   newProject.value = { name: '', genre: '', shortDescription: '', logo: '' }
   projectFormError.value = ''
@@ -380,18 +388,19 @@ async function handleLogoUpload(event, target = 'new') {
   }
 }
 
-/** Thin wrapper so the "Add Project" file input doesn't need to pass the 'new' target inline in the template. */
+/** Thin wrapper so the "Add Startup" file input doesn't need to pass the 'new' target inline in the template. */
 function onAddFileSelected(event) {
   handleLogoUpload(event, 'new')
 }
 
 /**
- * Validates and submits the "Add Project" form: requires a non-empty,
+ * Validates and submits the "Add Startup" form: requires a non-empty,
  * globally-unique name. On success, creates the startup via the API,
  * appends it to `localStartups`, and increments the active cohort's
  * local `value` (startup count) so the cohort list reflects the new
  * total without a full reload. Closes the modal on success; leaves it
  * open with an error message on failure.
+ * (Function name kept as addProject() — see note above showAddProjectModal.)
  */
 async function addProject() {
   const name = newProject.value.name.trim()
@@ -647,24 +656,24 @@ isSavingProject.value = true
           </ul>
         </section>
 
-        <!-- Column 2: Projects -->
+        <!-- Column 2: Startups -->
         <section class="rounded-xl bg-white p-5 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] self-start min-w-0" :class="{ 'animate-pulse': isLoading }">
 
-          <div class="flex items-center justify-between rounded-xl bg-[#263e30] px-4 py-4 gap-2"> <!-- Projects Header -->
-            <span class="text-sm font-semibold uppercase tracking-[0.24em] text-white">Projects</span>
+          <div class="flex items-center justify-between rounded-xl bg-[#263e30] px-4 py-4 gap-2"> <!-- Startups Header -->
+            <span class="text-sm font-semibold uppercase tracking-[0.24em] text-white">Startups</span>
             <button
               @click="openAddProjectModal"
               class="rounded-sm bg-[#4d7c5e] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#4d7c5e] transition shrink-0"
-            >+ Project</button>
+            >+ Startup</button>
           </div>
 
 
           <div class="grid gap-3 sm:grid-cols-3 mb-4 p-3"> <!-- Search and Filters -->
             <div class="flex flex-col gap-1">
-              <label class="text-xs text-neutral-600">Project</label>
+              <label class="text-xs text-neutral-600">Startup</label>
               <input
                 v-model="projectSearch"
-                placeholder="Search project..."
+                placeholder="Search startup..."
                 class="w-full rounded-[2rem] border border-gray-200 bg-gray-100 px-4 py-3 text-sm text-black outline-none focus:border-[#263e30]"
               />
             </div>
@@ -693,7 +702,7 @@ isSavingProject.value = true
           </div>
 
 
-          <ul class="space-y-2"> <!-- Project List -->
+          <ul class="space-y-2"> <!-- Startup List -->
             <li
               v-for="startup in paginatedStartups"
               :key="startup.id"
@@ -886,11 +895,11 @@ isSavingProject.value = true
     </div>
   </div>
 
-  <!-- Add Project Modal -->
+  <!-- Add Startup Modal -->
   <div v-if="showAddProjectModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
     <div class="bg-white rounded-[2rem] p-6 w-full max-w-md shadow-xl space-y-4">
       <div class="flex items-center justify-between">
-        <h3 class="text-base font-semibold text-black">Add Project to {{ cohortName(activeCohortId) }}</h3>
+        <h3 class="text-base font-semibold text-black">Add Startup to {{ cohortName(activeCohortId) }}</h3>
         <button @click="showAddProjectModal = false" class="text-slate-400 hover:text-black text-xl leading-none">✕</button>
       </div>
       <div class="space-y-3">
@@ -949,10 +958,6 @@ isSavingProject.value = true
         </div>
       </div>
       <p v-if="projectFormError" class="text-sm text-red-600">{{ projectFormError }}</p>
-      <!-- <button
-        @click="addProject"
-        class="w-full rounded-2xl bg-[#263e30] py-2 text-sm font-semibold text-white hover:bg-[#4d7c5e] transition"
-      >Add Project</button> -->
       <!--july 10-[bug fix]: duplicate entries on double click-->
       <button
         @click="addProject"
@@ -963,7 +968,7 @@ isSavingProject.value = true
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
         </svg>
-        {{ isSavingProject ? 'Adding...' : 'Add Project' }}
+        {{ isSavingProject ? 'Adding...' : 'Add Startup' }}
       </button>
     </div>
   </div>
@@ -989,7 +994,7 @@ isSavingProject.value = true
             @focus="showEditGenreSuggestions = true"
             @blur="showEditGenreSuggestions = false"
           />
-          <!-- Same reasoning as the Add Project genre input above. -->
+          <!-- Same reasoning as the Add Startup genre input above. -->
           <ChevronDownIcon class="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <ul
             v-if="showEditGenreSuggestions && matchingGenres(editForm.genre).length"
