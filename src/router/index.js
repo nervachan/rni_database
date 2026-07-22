@@ -11,11 +11,15 @@ import SuperAdminDashboard from '../views/super-admin-pages/SuperAdminDashboard.
 import userMgmt from '../views/super-admin-pages/userMgmt.vue'
 import logs from '../views/super-admin-pages/logs.vue'
 import appliAndNotifs from '../views/super-admin-pages/appliAndNotifs.vue'
-import RSODashboard from '../views/rso-pages/RSODashboard.vue'
-import resEntryMgmt from '../views/rso-pages/resEntryMgmt.vue'
-import inttoDashboard from '../views/intto-pages/inttoDashboard.vue'
-import startupMgmt from '../views/intto-pages/startupManagement.vue'
-import IPMgmt from '../views/intto-pages/ipManagement.vue'
+// RSO and INTTO page components are lazy-loaded below
+// (component: () => import(...)) instead of statically imported here.
+// A static import at the top of this file bundles the component into
+// the SAME chunk as everything else needed on first load — login,
+// register, the layout shell — even though a given person only ever
+// uses ONE of the three portals in a session. Vite automatically
+// splits each dynamic import() into its own separate file, so an RSO
+// user's first page load never has to download INTTO's code at all,
+// and vice versa.
 
 const routes = [
     { path: '/', redirect: '/login'},
@@ -46,17 +50,17 @@ const routes = [
                 path: 'rso-admin',
                 component: RSOView,
                 children: [
-                    {path: 'dashboard', name: 'RSODashboard', component: RSODashboard},
-                    {path: 'research-entry-management', name: 'ResearchEntryManagement', component: resEntryMgmt},
+                    {path: 'dashboard', name: 'RSODashboard', component: () => import('../views/rso-pages/RSODashboard.vue')},
+                    {path: 'research-entry-management', name: 'ResearchEntryManagement', component: () => import('../views/rso-pages/resEntryMgmt.vue')},
                 ]
             },
             {
                 path: 'intto-admin',
                 component: INTTOView,
                 children: [
-                    {path: 'dashboard', name: 'INTTODashboard', component: inttoDashboard},
-                    {path: 'ip-management', name: 'IPManagement', component: IPMgmt},
-                    {path: 'startup-management', name: 'StartupManagement', component: startupMgmt},
+                    {path: 'dashboard', name: 'INTTODashboard', component: () => import('../views/intto-pages/inttoDashboard.vue')},
+                    {path: 'ip-management', name: 'IPManagement', component: () => import('../views/intto-pages/ipManagement.vue')},
+                    {path: 'startup-management', name: 'StartupManagement', component: () => import('../views/intto-pages/startupManagement.vue')},
                 ]
             }
         ]

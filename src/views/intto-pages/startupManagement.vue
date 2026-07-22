@@ -285,14 +285,69 @@ function cohortProjectCountLabel(cohortId) {
 }
 
 /**
- * Reads a selected logo image file as a data URL and stores it on the
- * appropriate form model. Rejects files over 2MB (clears any previously
- * selected logo/filename on that form instead of silently keeping it).
+ * Converts an image File into a resized WebP data URL, entirely in the
+ * browser — no extra library needed, since every modern browser (Chrome,
+ * Firefox, Edge, Safari 14+) already supports exporting canvas content
+ * as image/webp.
+ *
+ * Two things shrink the stored size here, not just one:
+ *   1. WebP itself compresses roughly 25-35% smaller than PNG/JPEG at
+ *      equivalent visual quality.
+ *   2. Capping the dimensions matters just as much, if not more — a
+ *      photo straight off a phone camera can be 4000px+ wide, but every
+ *      logo in this app only ever renders in a small fixed-size square
+ *      (see the object-cover/object-contain usages further down).
+ *      Storing it at full camera resolution has zero visual benefit,
+ *      since it's downscaled by CSS on every single render regardless.
+ *
+ * This matters because logos are stored directly as a data URL string
+ * in the startups.logo_url database column, not a separate file-storage
+ * service — every byte saved here is a byte NOT sent over the network
+ * on every /api/startups request, for every user, every time.
+ *
+ * @param {File} file - the selected image file
+ * @param {number} maxDimension - longest side, in pixels, to scale down to
+ * @param {number} quality - WebP quality, 0-1
+ * @returns {Promise<string>} the resulting image/webp data URL
+ */
+function fileToWebp(file, maxDimension = 512, quality = 0.85) {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const objectUrl = URL.createObjectURL(file)
+
+    img.onload = () => {
+      // Never scales UP a smaller image — only ever down, and only when
+      // the longest side actually exceeds maxDimension.
+      const scale = Math.min(1, maxDimension / Math.max(img.width, img.height))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(img.width * scale)
+      canvas.height = Math.round(img.height * scale)
+
+      const ctx = canvas.getContext('2d')
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+
+      URL.revokeObjectURL(objectUrl) // release the temporary object URL now that it's been drawn to canvas
+      resolve(canvas.toDataURL('image/webp', quality))
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl)
+      reject(new Error('Could not read the selected image file.'))
+    }
+    img.src = objectUrl
+  })
+}
+
+/**
+ * Reads a selected logo image file, converts it to a resized WebP data
+ * URL via fileToWebp() above, and stores the result on the appropriate
+ * form model. Rejects files over 2MB before doing any conversion work
+ * (clears any previously selected logo/filename on that form instead of
+ * silently keeping it).
  * @param {Event} event - file input change event
  * @param {'new'|'edit'} target - which form to update: newProject (add
  *   modal) or editForm (edit modal)
  */
-function handleLogoUpload(event, target = 'new') {
+async function handleLogoUpload(event, target = 'new') {
   const file = event.target.files?.[0]
   if (!file) return
   if (file.size > 2 * 1024 * 1024) {
@@ -307,18 +362,22 @@ function handleLogoUpload(event, target = 'new') {
     return
   }
 
-  const reader = new FileReader()
-  reader.onload = () => {
+  try {
+    const webpDataUrl = await fileToWebp(file)
     if (target === 'new') {
-      newProject.value.logo = reader.result
+      newProject.value.logo = webpDataUrl
       addSelectedName.value = file.name
     } else {
-      editForm.value.logo = reader.result
+      editForm.value.logo = webpDataUrl
       editSelectedName.value = file.name
     }
     projectLogoError.value = ''
+  } catch (err) {
+    // Genuinely corrupt/unreadable files are rare but not impossible —
+    // this keeps a bad file from crashing the form instead of just
+    // silently leaving the old logo/filename in place.
+    projectLogoError.value = 'Could not process that image. Please try a different file.'
   }
-  reader.readAsDataURL(file)
 }
 
 /** Thin wrapper so the "Add Project" file input doesn't need to pass the 'new' target inline in the template. */
