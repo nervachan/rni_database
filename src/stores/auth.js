@@ -110,7 +110,10 @@ export const useAuthStore = defineStore('auth', () => {
       const token = await credential.user.getIdToken()
       await fetch('/api/logs/login', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
       })
     } catch (logErr) {
       console.error('Failed to record login:', logErr)
@@ -127,7 +130,10 @@ export const useAuthStore = defineStore('auth', () => {
       if (token) {
         await fetch('/api/logs/logout', {
           method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
         })
       }
     } catch (logErr) {

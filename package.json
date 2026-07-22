@@ -30,5 +30,8 @@
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.6",
     "vite": "^8.0.12"
+  },
+  "overrides": {
+    "jose": "^5.0.0"
   }
 }
