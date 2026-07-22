@@ -25,12 +25,20 @@ const loadError       = ref('')     // set if the initial loadData() fetch fails
 const isLoading       = ref(true)   // drives the top spinner banner + animate-pulse on all 3 columns while the initial fetch is in flight
 const activeProjectId = ref(null)   // id of the startup currently shown in column 3; null = show cohort-wide stats instead
 const projectSearch   = ref('')     // free-text filter on project name (column 2)
-const genreSearch     = ref('')     // genre filter on project list; '' or 'All' = no filter
+const genreSearch     = ref('All')  // genre filter on project list; 'All' = no filter (see allGenres below, which always includes 'All' as its first real option)
 
 // --- Modal / form visibility + error state ---
 const showCohortModal     = ref(false)     // "Manage Cohorts" modal (select existing / add new)
 const showProjectModal    = ref(false)     // "Edit Project" modal
-const showAddProjectModal = ref(false)     // "Add Project" modal
+// NOTE for future readers: the button/modal this controls now displays
+// "Add Startup" in the UI (changed from "Project" wording). The variable
+// and function names below (showAddProjectModal, newProject, addProject(),
+// isSavingProject, projectFormError, etc.) were deliberately left
+// unchanged — renaming them touches many call sites throughout this file
+// and wasn't part of this change. If you're renaming things here later,
+// this comment is your signal that the UI label and the internal names
+// are intentionally out of sync, not a mistake.
+const showAddProjectModal = ref(false)     // "Add Startup" modal
 const showDeleteConfirm   = ref(false)     // delete-project confirmation modal
 const deleteCandidate     = ref(null)      // the startup object pending deletion
 
@@ -47,7 +55,7 @@ const projectFormError    = ref('')        // validation/API error shared by the
 const projectLogoError    = ref('')        // logo-specific error (e.g. file too large), shared by both forms
 const itemsPerPage        = ref(10)        // rows per page for paginatedStartups
 const currentPage         = ref(1)         // 1-indexed current page within the active cohort's project list
-const newProject          = ref({ name: '', genre: '', shortDescription: '', logo: '' })  // "Add Project" form model
+const newProject          = ref({ name: '', genre: '', shortDescription: '', logo: '' })  // "Add Startup" form model (variable name unchanged — see note above)
 const editSelectedName    = ref('')        // display name of the chosen logo file in the edit form (UI only)
 const addSelectedName     = ref('')        // display name of the chosen logo file in the add form (UI only)
 
@@ -132,7 +140,11 @@ const filteredStartups = computed(() => {
   return localStartups.value.filter(s =>
     s.cohortId === activeCohortId.value &&
     s.name.toLowerCase().includes(name) &&
-    (genre === '' || genre === 'All' || s.genre === genre)
+    // genreSearch is now always either 'All' or a real genre string —
+    // never '' — so the old `genre === ''` check here is gone. Keeping
+    // a dead check for a state that can no longer happen just invites a
+    // future reader to wonder what sets it back to '', when nothing does.
+    (genre === 'All' || s.genre === genre)
   )
 })
 
@@ -193,7 +205,7 @@ function cohortName(id) {
 function selectCohort(id) {
   activeCohortId.value  = id
   activeProjectId.value = null
-  genreSearch.value     = ''
+  genreSearch.value     = 'All'
   showCohortModal.value = false
 }
 
@@ -252,7 +264,7 @@ function nextCohortName() {
   } catch (err) {
     loadError.value = 'Failed to create cohort. ' + err.message} */
 
-/** Resets the "Add Project" form to blank and opens its modal. */
+/** Resets the "Add Startup" form to blank and opens its modal. */
 function openAddProjectModal() {
   newProject.value = { name: '', genre: '', shortDescription: '', logo: '' }
   projectFormError.value = ''
@@ -285,14 +297,69 @@ function cohortProjectCountLabel(cohortId) {
 }
 
 /**
- * Reads a selected logo image file as a data URL and stores it on the
- * appropriate form model. Rejects files over 2MB (clears any previously
- * selected logo/filename on that form instead of silently keeping it).
+ * Converts an image File into a resized WebP data URL, entirely in the
+ * browser — no extra library needed, since every modern browser (Chrome,
+ * Firefox, Edge, Safari 14+) already supports exporting canvas content
+ * as image/webp.
+ *
+ * Two things shrink the stored size here, not just one:
+ *   1. WebP itself compresses roughly 25-35% smaller than PNG/JPEG at
+ *      equivalent visual quality.
+ *   2. Capping the dimensions matters just as much, if not more — a
+ *      photo straight off a phone camera can be 4000px+ wide, but every
+ *      logo in this app only ever renders in a small fixed-size square
+ *      (see the object-cover/object-contain usages further down).
+ *      Storing it at full camera resolution has zero visual benefit,
+ *      since it's downscaled by CSS on every single render regardless.
+ *
+ * This matters because logos are stored directly as a data URL string
+ * in the startups.logo_url database column, not a separate file-storage
+ * service — every byte saved here is a byte NOT sent over the network
+ * on every /api/startups request, for every user, every time.
+ *
+ * @param {File} file - the selected image file
+ * @param {number} maxDimension - longest side, in pixels, to scale down to
+ * @param {number} quality - WebP quality, 0-1
+ * @returns {Promise<string>} the resulting image/webp data URL
+ */
+function fileToWebp(file, maxDimension = 512, quality = 0.85) {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const objectUrl = URL.createObjectURL(file)
+
+    img.onload = () => {
+      // Never scales UP a smaller image — only ever down, and only when
+      // the longest side actually exceeds maxDimension.
+      const scale = Math.min(1, maxDimension / Math.max(img.width, img.height))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(img.width * scale)
+      canvas.height = Math.round(img.height * scale)
+
+      const ctx = canvas.getContext('2d')
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+
+      URL.revokeObjectURL(objectUrl) // release the temporary object URL now that it's been drawn to canvas
+      resolve(canvas.toDataURL('image/webp', quality))
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl)
+      reject(new Error('Could not read the selected image file.'))
+    }
+    img.src = objectUrl
+  })
+}
+
+/**
+ * Reads a selected logo image file, converts it to a resized WebP data
+ * URL via fileToWebp() above, and stores the result on the appropriate
+ * form model. Rejects files over 2MB before doing any conversion work
+ * (clears any previously selected logo/filename on that form instead of
+ * silently keeping it).
  * @param {Event} event - file input change event
  * @param {'new'|'edit'} target - which form to update: newProject (add
  *   modal) or editForm (edit modal)
  */
-function handleLogoUpload(event, target = 'new') {
+async function handleLogoUpload(event, target = 'new') {
   const file = event.target.files?.[0]
   if (!file) return
   if (file.size > 2 * 1024 * 1024) {
@@ -307,32 +374,37 @@ function handleLogoUpload(event, target = 'new') {
     return
   }
 
-  const reader = new FileReader()
-  reader.onload = () => {
+  try {
+    const webpDataUrl = await fileToWebp(file)
     if (target === 'new') {
-      newProject.value.logo = reader.result
+      newProject.value.logo = webpDataUrl
       addSelectedName.value = file.name
     } else {
-      editForm.value.logo = reader.result
+      editForm.value.logo = webpDataUrl
       editSelectedName.value = file.name
     }
     projectLogoError.value = ''
+  } catch (err) {
+    // Genuinely corrupt/unreadable files are rare but not impossible —
+    // this keeps a bad file from crashing the form instead of just
+    // silently leaving the old logo/filename in place.
+    projectLogoError.value = 'Could not process that image. Please try a different file.'
   }
-  reader.readAsDataURL(file)
 }
 
-/** Thin wrapper so the "Add Project" file input doesn't need to pass the 'new' target inline in the template. */
+/** Thin wrapper so the "Add Startup" file input doesn't need to pass the 'new' target inline in the template. */
 function onAddFileSelected(event) {
   handleLogoUpload(event, 'new')
 }
 
 /**
- * Validates and submits the "Add Project" form: requires a non-empty,
+ * Validates and submits the "Add Startup" form: requires a non-empty,
  * globally-unique name. On success, creates the startup via the API,
  * appends it to `localStartups`, and increments the active cohort's
  * local `value` (startup count) so the cohort list reflects the new
  * total without a full reload. Closes the modal on success; leaves it
  * open with an error message on failure.
+ * (Function name kept as addProject() — see note above showAddProjectModal.)
  */
 async function addProject() {
   const name = newProject.value.name.trim()
@@ -588,24 +660,24 @@ isSavingProject.value = true
           </ul>
         </section>
 
-        <!-- Column 2: Projects -->
+        <!-- Column 2: Startups -->
         <section class="rounded-xl bg-white p-5 shadow-[-3px_3px_6px_rgba(0,0,0,0.25)] self-start min-w-0" :class="{ 'animate-pulse': isLoading }">
 
-          <div class="flex items-center justify-between rounded-xl bg-[#263e30] px-4 py-4 gap-2"> <!-- Projects Header -->
-            <span class="text-sm font-semibold uppercase tracking-[0.24em] text-white">Projects</span>
+          <div class="flex items-center justify-between rounded-xl bg-[#263e30] px-4 py-4 gap-2"> <!-- Startups Header -->
+            <span class="text-sm font-semibold uppercase tracking-[0.24em] text-white">Startups</span>
             <button
               @click="openAddProjectModal"
               class="rounded-sm bg-[#4d7c5e] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#4d7c5e] transition shrink-0"
-            >+ Project</button>
+            >+ Startup</button>
           </div>
 
 
           <div class="grid gap-3 sm:grid-cols-3 mb-4 p-3"> <!-- Search and Filters -->
             <div class="flex flex-col gap-1">
-              <label class="text-xs text-neutral-600">Project</label>
+              <label class="text-xs text-neutral-600">Startup</label>
               <input
                 v-model="projectSearch"
-                placeholder="Search project..."
+                placeholder="Search startup..."
                 class="w-full rounded-[2rem] border border-gray-200 bg-gray-100 px-4 py-3 text-sm text-black outline-none focus:border-[#263e30]"
               />
             </div>
@@ -634,7 +706,7 @@ isSavingProject.value = true
           </div>
 
 
-          <ul class="space-y-2"> <!-- Project List -->
+          <ul class="space-y-2"> <!-- Startup List -->
             <li
               v-for="startup in paginatedStartups"
               :key="startup.id"
@@ -827,11 +899,11 @@ isSavingProject.value = true
     </div>
   </div>
 
-  <!-- Add Project Modal -->
+  <!-- Add Startup Modal -->
   <div v-if="showAddProjectModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
     <div class="bg-white rounded-[2rem] p-6 w-full max-w-md shadow-xl space-y-4">
       <div class="flex items-center justify-between">
-        <h3 class="text-base font-semibold text-black">Add Project to {{ cohortName(activeCohortId) }}</h3>
+        <h3 class="text-base font-semibold text-black">Add Startup to {{ cohortName(activeCohortId) }}</h3>
         <button @click="showAddProjectModal = false" class="text-slate-400 hover:text-black text-xl leading-none">✕</button>
       </div>
       <div class="space-y-3">
@@ -890,10 +962,6 @@ isSavingProject.value = true
         </div>
       </div>
       <p v-if="projectFormError" class="text-sm text-red-600">{{ projectFormError }}</p>
-      <!-- <button
-        @click="addProject"
-        class="w-full rounded-2xl bg-[#263e30] py-2 text-sm font-semibold text-white hover:bg-[#4d7c5e] transition"
-      >Add Project</button> -->
       <!--july 10-[bug fix]: duplicate entries on double click-->
       <button
         @click="addProject"
@@ -904,7 +972,7 @@ isSavingProject.value = true
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
         </svg>
-        {{ isSavingProject ? 'Adding...' : 'Add Project' }}
+        {{ isSavingProject ? 'Adding...' : 'Add Startup' }}
       </button>
     </div>
   </div>
@@ -930,7 +998,7 @@ isSavingProject.value = true
             @focus="showEditGenreSuggestions = true"
             @blur="showEditGenreSuggestions = false"
           />
-          <!-- Same reasoning as the Add Project genre input above. -->
+          <!-- Same reasoning as the Add Startup genre input above. -->
           <ChevronDownIcon class="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <ul
             v-if="showEditGenreSuggestions && matchingGenres(editForm.genre).length"
