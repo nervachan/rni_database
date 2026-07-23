@@ -142,6 +142,9 @@ Recommendations for future development, based on gaps identified during this int
 - **Backup**: Data from the system should be backed up somewhere else and should be accessible in case of emergencies
 - **Backup Intervals**: Data should be backed up daily (recommended) or weekly. 
 
+### 7.4 Forgot Password
+- Currently there is no means of changing passwords for any users at all. 
+- *Recommendation*: Add a "Forgot Password" option in the login screen, which sends a password-change request to the super admin.
 ---
 
 *Document status: Sections 4.1 (CRUD table) and 5 (Schema) are complete. Section 4 (CRUD backend function walkthrough) and 6.3 (createSuperAdmin usage) are pending further input.*
