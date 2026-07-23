@@ -521,7 +521,12 @@ function handleTableAction({ action, row }) {
           <div><span class="font-semibold">Start Date:</span> {{ selectedEntry.startDate }}</div>
           <div><span class="font-semibold">End Date:</span> {{ selectedEntry.endDate }}</div>
           <div><span class="font-semibold">ISBN:</span> {{ selectedEntry.isbn || 'N/A' }}</div>
-          <div><span class="font-semibold">Scopus Link:</span> <a v-if="selectedEntry.scopusLink" :href="selectedEntry.scopusLink" target="_blank" rel="noopener noreferrer" class="text-blue-600 underline hover:text-blue-800">Link</a><span v-else>N/A</span></div>
+          <!-- Same "empty or literal N/A" check as ReusableTable.vue's
+               hasValidLink() — kept as its own small inline check here
+               rather than importing a shared helper for one two-line
+               condition, since this file and ReusableTable.vue are
+               separate components. -->
+          <div><span class="font-semibold">Scopus Link:</span> <a v-if="selectedEntry.scopusLink && selectedEntry.scopusLink.trim().toLowerCase() !== 'n/a'" :href="selectedEntry.scopusLink" target="_blank" rel="noopener noreferrer" class="text-blue-600 underline hover:text-blue-800">Link</a><span v-else class="text-gray-400">N/A</span></div>
           <div><span class="font-semibold">Abstract / Summary:</span> {{ selectedEntry.abstract || 'N/A' }}</div>
         </div>
 

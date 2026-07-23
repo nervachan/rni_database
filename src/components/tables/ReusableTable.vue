@@ -57,6 +57,18 @@ function handleAction(action, row) {
   emit('action', { action, row });
 }
 
+/**
+ * Whether a link-type column's value should render as a real, clickable
+ * link. Guards against two cases that would otherwise still render as a
+ * blue, underlined, seemingly-clickable link with nowhere useful to go:
+ * a missing/empty value, and a literal placeholder string like "N/A" or
+ * "n/a" that ended up in the field instead of it being left blank.
+ */
+function hasValidLink(value) {
+  if (!value) return false;
+  return value.trim().toLowerCase() !== 'n/a';
+}
+
 function getRowClasses(row) {
   const severity = row?.severity;
   if (severity === 'critical') return '!bg-red-100';
@@ -109,8 +121,14 @@ function getStatusClasses(value) {
                      noreferrer additionally stops this page's URL from
                      being sent in the Referer header. Both are standard
                      practice any time target="_blank" points at a link
-                     someone else controls. -->
-                <a :href="row[column.key]" target="_blank" rel="noopener noreferrer" class="block truncate text-blue-600 underline hover:text-blue-800">{{ column.linkText || 'Link' }}</a>
+                     someone else controls.
+
+                     hasValidLink() guards against an empty or literal
+                     "N/A" value — without it, this rendered as a real,
+                     clickable blue link even when there was nothing
+                     behind it to click through to. -->
+                <a v-if="hasValidLink(row[column.key])" :href="row[column.key]" target="_blank" rel="noopener noreferrer" class="block truncate text-blue-600 underline hover:text-blue-800">{{ column.linkText || 'Link' }}</a>
+                <span v-else class="block truncate text-gray-400">N/A</span>
               </template>
               <template v-else-if="column.type === 'status-select'">
                 <div class="flex items-center gap-2">
